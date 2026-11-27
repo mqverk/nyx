@@ -11,6 +11,7 @@ from nyx.bot.cogs.core import (
     human_duration,
     parse_duration,
     safe_eval,
+    to_smallcaps,
     to_spoiler,
 )
 
@@ -127,6 +128,31 @@ def test_spoiler_input_cap_is_safe_for_discord():
 
 
 # --------------------------------------------------------------------------
+# .smallcaps transform
+# --------------------------------------------------------------------------
+def test_to_smallcaps_basic():
+    assert to_smallcaps("hello") == "ʜᴇʟʟᴏ"
+
+
+def test_to_smallcaps_lowercases_uppercase_input():
+    assert to_smallcaps("HELLO") == to_smallcaps("hello")
+
+
+def test_to_smallcaps_preserves_non_letters():
+    assert to_smallcaps("hi 42!") == "ʜɪ 42!"
+
+
+def test_to_smallcaps_empty():
+    assert to_smallcaps("") == ""
+
+
+def test_to_smallcaps_covers_whole_alphabet():
+    out = to_smallcaps("abcdefghijklmnopqrstuvwxyz")
+    assert len(out) == 26
+    assert out[0] == "ᴀ" and out[-1] == "ᴢ"
+
+
+# --------------------------------------------------------------------------
 # Cog registration
 # --------------------------------------------------------------------------
 async def test_cog_registers_all_commands():
@@ -138,7 +164,7 @@ async def test_cog_registers_all_commands():
     names = {cmd.name for cmd in cog.get_commands()}
     assert {
         "ping", "userinfo", "serverinfo", "avatar",
-        "purge", "snipe", "remind", "calc", "spoiler",
+        "purge", "snipe", "remind", "calc", "spoiler", "smallcaps",
     } <= names
     await bot.close()
 

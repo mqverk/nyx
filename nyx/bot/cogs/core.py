@@ -119,6 +119,20 @@ def to_spoiler(text: str) -> str:
     return "".join(f"||{ch}||" for ch in (text or ""))
 
 
+_SMALLCAPS_MAP = {
+    "a": "ᴀ", "b": "ʙ", "c": "ᴄ", "d": "ᴅ", "e": "ᴇ", "f": "ꜰ", "g": "ɢ",
+    "h": "ʜ", "i": "ɪ", "j": "ᴊ", "k": "ᴋ", "l": "ʟ", "m": "ᴍ", "n": "ɴ",
+    "o": "ᴏ", "p": "ᴘ", "q": "ǫ", "r": "ʀ", "s": "ꜱ", "t": "ᴛ", "u": "ᴜ",
+    "v": "ᴠ", "w": "ᴡ", "x": "x", "y": "ʏ", "z": "ᴢ",
+}
+_SMALLCAPS_TABLE = str.maketrans(_SMALLCAPS_MAP)
+
+
+def to_smallcaps(text: str) -> str:
+    """Transliterate text into Unicode small-caps glyphs."""
+    return (text or "").lower().translate(_SMALLCAPS_TABLE)
+
+
 # ---------------------------------------------------------------------------
 # Cog
 # ---------------------------------------------------------------------------
@@ -261,6 +275,16 @@ class Core(commands.Cog, name="Core"):
             return
         with contextlib.suppress(discord.HTTPException):
             await ctx.message.edit(content=to_spoiler(cleaned))
+
+    @commands.command(name="smallcaps")
+    async def smallcaps(self, ctx: commands.Context, *, text: str) -> None:
+        """Rewrite your own command message in Unicode small caps."""
+        cleaned = (text or "").strip()
+        if not cleaned:
+            await ctx.send("usage: `.smallcaps <text>`")
+            return
+        with contextlib.suppress(discord.HTTPException):
+            await ctx.message.edit(content=to_smallcaps(cleaned))
 
 
 async def setup(bot: commands.Bot) -> None:
