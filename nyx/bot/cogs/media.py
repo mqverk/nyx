@@ -6,6 +6,7 @@ without a live Discord gateway.
 
 from __future__ import annotations
 
+import asyncio
 import contextlib
 import time
 from typing import Any
@@ -13,10 +14,22 @@ from typing import Any
 import discord
 from discord.ext import commands
 
+from nyx.bot.cogs.core import human_duration, parse_duration
+
+MAX_GHOST_SECONDS = 86400  # 24h hard cap
+
 
 # ---------------------------------------------------------------------------
 # Pure helpers
 # ---------------------------------------------------------------------------
+def ghost_delay(duration: str) -> int:
+    """Parse a duration and clamp it to a sane self-destruct window."""
+    seconds = parse_duration(duration)
+    if seconds <= 0:
+        raise ValueError("duration must be positive")
+    return max(1, min(seconds, MAX_GHOST_SECONDS))
+
+
 class EditTracker:
     """Bounded in-memory history of message edits, keyed by channel."""
 
@@ -73,6 +86,7 @@ class Media(commands.Cog, name="Media"):
     def __init__(self, bot: commands.Bot) -> None:
         self.bot = bot
         self.edits = EditTracker()
+        self._ghosts: set[asyncio.Task[None]] = set()
 
     # -- listeners ---------------------------------------------------------
     @commands.Cog.listener()
@@ -103,6 +117,27 @@ class Media(commands.Cog, name="Media"):
             f"**{entry['author_name'] or 'unknown'}** edited a message:\n"
             f"**before:** {before}\n**after:** {after}"
         )
+
+    @commands.command(name="ghost")
+    async def ghost(self, ctx: commands.Context, duration: str, *, text: str) -> None:
+        """Post ``text`` and delete it after ``duration`` (e.g. ``.ghost 30s hi``)."""
+        try:
+            seconds = ghost_delay(duration)
+        except ValueError as exc:
+            await ctx.send(f"bad duration: {exc}")
+            return
+        sent = await ctx.send(text)
+
+        async def _burn() -> None:
+            await asyncio.sleep(seconds)
+            with contextlib.suppress(discord.HTTPException):
+                await sent.delete()
+
+        task = asyncio.create_task(_burn())
+        self._ghosts.add(task)
+        task.add_done_callback(self._ghosts.discard)
+        with contextlib.suppress(discord.HTTPException):
+            await ctx.send(f"👻 self-destructs in {human_duration(seconds)}", delete_after=5)
 
 
 async def setup(bot: commands.Bot) -> None:

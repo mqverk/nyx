@@ -5,7 +5,7 @@ from __future__ import annotations
 import pytest
 from discord.ext import commands
 
-from nyx.bot.cogs.media import EditTracker, Media
+from nyx.bot.cogs.media import MAX_GHOST_SECONDS, EditTracker, Media, ghost_delay
 
 
 # --------------------------------------------------------------------------
@@ -67,6 +67,33 @@ def test_empty_content_is_preserved_as_empty_string():
 
 
 # --------------------------------------------------------------------------
+# .ghost duration handling
+# --------------------------------------------------------------------------
+@pytest.mark.parametrize(
+    "text,expected",
+    [("30s", 30), ("5m", 300), ("1h", 3600), ("1h30m", 5400), ("90", 90)],
+)
+def test_ghost_delay_parses(text, expected):
+    assert ghost_delay(text) == expected
+
+
+def test_ghost_delay_clamps_to_24h():
+    assert ghost_delay("5d") == MAX_GHOST_SECONDS
+    assert ghost_delay("999999") == MAX_GHOST_SECONDS
+
+
+def test_ghost_delay_rejects_garbage_and_zero():
+    with pytest.raises(ValueError):
+        ghost_delay("abc")
+    with pytest.raises(ValueError):
+        ghost_delay("0s")
+
+
+def test_ghost_delay_never_below_one_second():
+    assert ghost_delay("1s") == 1
+
+
+# --------------------------------------------------------------------------
 # Cog registration
 # --------------------------------------------------------------------------
 async def test_cog_registers_editsnipe_with_alias():
@@ -74,7 +101,8 @@ async def test_cog_registers_editsnipe_with_alias():
     await bot.add_cog(Media(bot))
     cog = bot.get_cog("Media")
     assert cog is not None
-    assert "editsnipe" in {c.name for c in cog.get_commands()}
+    names = {c.name for c in cog.get_commands()}
+    assert {"editsnipe", "ghost"} <= names
     assert bot.get_command("es") is not None
     assert bot.get_command("es").name == "editsnipe"
     await bot.close()
