@@ -1,9 +1,17 @@
-# nyx
+```
+███╗   ██╗  ██╗   ██╗  ██╗  ██╗
+████╗  ██║  ╚██╗ ██╔╝  ╚██╗██╔╝
+██╔██╗ ██║   ╚████╔╝    ╚███╔╝
+██║╚██╗██║    ╚██╔╝     ██╔██╗
+██║ ╚████║     ██║     ██╔╝ ██╗
+╚═╝  ╚═══╝     ╚═╝     ╚═╝  ╚═╝
+```
 
 **A modular Discord self-bot with a real-time web control panel.**
 
-Clone it, install the dependencies, run one command. nyx generates its own config, picks a
-PIN, and opens a live dashboard — no manual setup, no build step, no database to provision.
+Clone it, run the bootstrapper, start the daemon. nyx creates its own virtualenv, installs
+its dependencies, generates a config, picks a PIN, and opens a live dashboard — no manual
+setup, no build step, no database to provision.
 
 Works on **Linux, macOS, and Windows**.
 
@@ -47,36 +55,57 @@ git clone https://github.com/mqverk/nyx.git
 cd nyx
 ```
 
-**2. Create a virtualenv and install**
+**2. Bootstrap and run**
 
 ```bash
-python -m venv venv
-source venv/bin/activate          # Windows: venv\Scripts\activate
-pip install -r requirements.txt
+python bootstrap.py          # venv + deps + .env + config.json + SQLite
+venv/bin/python run.py       # Windows: venv\Scripts\python run.py
 ```
 
-**3. Run**
-
-```bash
-python run.py
-```
-
-That's it. On first launch nyx prints something like:
+`bootstrap.py` uses **only the Python standard library**, so it runs before anything is
+installed. It walks five steps:
 
 ```
-  ┌──────────────────────────────────────────────┐
-  │  nyx — discord self-bot control panel        │
-  └──────────────────────────────────────────────┘
-   web ui   http://127.0.0.1:8765
-   pin      QJ3PS4F6TAQP
-   token    not set — standby mode
+  [1/5] checking Python version
+        ✓ Python 3.12.3
+  [2/5] creating virtual environment
+        ✓ created venv/
+  [3/5] installing requirements
+        ✓ installed in 11.8s
+  [4/5] generating config.json and .env
+        ✓ config.json created
+        ✓ .env created (mode 600)
+  [5/5] initializing SQLite tables
+        ✓ data/nyx.db ready
+```
+
+Then `run.py` renders the terminal status card:
+
+```
+███╗   ██╗  ██╗   ██╗  ██╗  ██╗
+████╗  ██║  ╚██╗ ██╔╝  ╚██╗██╔╝
+██╔██╗ ██║   ╚████╔╝    ╚███╔╝
+██║╚██╗██║    ╚██╔╝     ██╔██╗
+██║ ╚████║     ██║     ██╔╝ ██╗
+╚═╝  ╚═══╝     ╚═╝     ╚═╝  ╚═╝
+
+              discord self-bot · web control panel
+
+╭──────────────────────────────── nyx ─────────────────────────────────╮
+│    bot mode  STANDBY                                                 │
+│   dashboard  http://127.0.0.1:8765                                   │
+│  web ui pin  ••••••••••QP                                            │
+│      prefix  .                                                       │
+│        cogs  automation, core, media, productivity                   │
+│    database  nyx.db · 7 tables                                       │
+╰──────────────────────────────────────────────────────────────────────╯
 ```
 
 Open the URL, enter the PIN, and paste a Discord token into the dashboard to bring the bot
 online. The token is write-only — the API never returns it.
 
-**Requirements:** Python 3.10+ and a C toolchain only if a wheel is unavailable for your
-platform. Everything else is pure Python.
+**Requirements:** Python 3.10+. `discord.py-self` is tested on 3.10–3.12; on 3.13+ the bot
+may not import, so use `python3.12 bootstrap.py` there.
 
 ---
 
@@ -97,6 +126,8 @@ every write.
 
 ```bash
 python run.py --host 0.0.0.0 --port 9000   # override .env
+python run.py --show-pin                   # reveal the PIN in the status card
+python run.py --reset-pin                  # generate a new PIN and save it to .env
 python run.py --no-banner                  # quiet startup
 python -m nyx --help                       # equivalent entrypoint
 ```
@@ -222,11 +253,14 @@ journalctl -u nyx -f      # logs
 
 ```
 nyx/
+├── bootstrap.py             stdlib-only first-run installer (venv, deps, .env, SQLite)
+├── bootstrap.sh             shell wrapper for bootstrap.py
 ├── run.py                   entrypoint (python run.py)
 ├── nyx/
 │   ├── __main__.py          python -m nyx
-│   ├── cli.py               argparse: --host / --port / --no-banner
-│   ├── bootstrap.py         first-run .env, config.json, data/ + PIN banner
+│   ├── cli.py               argparse: --host / --port / --show-pin / --reset-pin
+│   ├── cli_ui.py            rich banner + framed status card
+│   ├── bootstrap.py         runtime .env / config.json / data/ creation
 │   ├── config.py            Pydantic v2 config, atomic .env writes, path resolution
 │   ├── db.py                aiosqlite store (WAL, serialized writes)
 │   ├── bot/
@@ -236,7 +270,7 @@ nyx/
 │       ├── app.py           FastAPI control plane (PIN auth, REST, /ws/logs)
 │       └── static/index.html single-page dashboard
 ├── deploy/nyx.service.example
-├── tests/                   290+ unit and integration tests
+├── tests/                   300+ unit and integration tests
 └── LICENSE                  MIT
 ```
 
