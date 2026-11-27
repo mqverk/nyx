@@ -7,18 +7,87 @@ from __future__ import annotations
 
 import asyncio
 import contextlib
+import re
 import time
+from datetime import datetime, timedelta, timezone, tzinfo
 from typing import Any
+from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 import discord
 from discord.ext import commands
 
 MIN_CYCLE_INTERVAL = 60  # Discord presence rate limit floor
 
+_OFFSET_RE = re.compile(r"^(?:UTC|GMT)?\s*([+-])\s*(\d{1,2})(?::?(\d{2}))?$", re.IGNORECASE)
+
+# Friendly city names -> IANA zones. IANA names always win when given directly.
+CITY_ALIASES: dict[str, str] = {
+    "kolkata": "Asia/Kolkata",
+    "calcutta": "Asia/Kolkata",
+    "mumbai": "Asia/Kolkata",
+    "delhi": "Asia/Kolkata",
+    "bangalore": "Asia/Kolkata",
+    "london": "Europe/London",
+    "paris": "Europe/Paris",
+    "berlin": "Europe/Berlin",
+    "moscow": "Europe/Moscow",
+    "dubai": "Asia/Dubai",
+    "tokyo": "Asia/Tokyo",
+    "singapore": "Asia/Singapore",
+    "sydney": "Australia/Sydney",
+    "new york": "America/New_York",
+    "nyc": "America/New_York",
+    "los angeles": "America/Los_Angeles",
+    "la": "America/Los_Angeles",
+    "chicago": "America/Chicago",
+    "toronto": "America/Toronto",
+    "sao paulo": "America/Sao_Paulo",
+    "utc": "UTC",
+    "gmt": "UTC",
+}
+
 
 # ---------------------------------------------------------------------------
 # Pure helpers
 # ---------------------------------------------------------------------------
+def resolve_timezone(text: str) -> tzinfo:
+    """Resolve an IANA name, a ``UTC+5:30`` offset, or a friendly city name."""
+    raw = (text or "").strip()
+    if not raw:
+        raise ValueError("empty timezone")
+
+    match = _OFFSET_RE.match(raw)
+    if match:
+        sign = 1 if match.group(1) == "+" else -1
+        hours = int(match.group(2))
+        minutes = int(match.group(3) or 0)
+        if hours > 14 or minutes > 59:
+            raise ValueError(f"offset out of range: {raw}")
+        return timezone(sign * timedelta(hours=hours, minutes=minutes))
+
+    try:
+        return ZoneInfo(raw)
+    except (ZoneInfoNotFoundError, ValueError):
+        pass
+
+    alias = CITY_ALIASES.get(raw.lower())
+    if alias:
+        try:
+            return ZoneInfo(alias)
+        except ZoneInfoNotFoundError:
+            pass
+
+    raise ValueError(f"unknown timezone {raw!r}")
+
+
+def format_local_time(zone: tzinfo, now: datetime | None = None) -> str:
+    """Render the current time in ``zone`` as ``YYYY-MM-DD HH:MM ABBR``."""
+    moment = datetime.now(zone) if now is None else now.astimezone(zone)
+    label = moment.tzname() or ""
+    stamp = moment.strftime("%Y-%m-%d %H:%M")
+    return f"{stamp} {label}".strip()
+
+
 def clamp_interval(seconds: Any) -> int:
     """Coerce a rotation interval to an integer of at least 60 seconds."""
     try:
@@ -225,6 +294,19 @@ class Productivity(commands.Cog, name="Productivity"):
         await ctx.send(
             f"status cycle on — {len(presets)} presets, rotating every {interval}s"
         )
+
+    @commands.command(name="tz")
+    async def tz(self, ctx: commands.Context, *, where: str = "") -> None:
+        """Convert the current time to another timezone."""
+        if not where.strip():
+            await ctx.send("usage: `.tz Asia/Kolkata` · `.tz UTC+5:30` · `.tz london`")
+            return
+        try:
+            zone = resolve_timezone(where)
+        except ValueError as exc:
+            await ctx.send(f"error: {exc}")
+            return
+        await ctx.send(f"**{where.strip()}** → {format_local_time(zone)}")
 
 
 async def setup(bot: commands.Bot) -> None:

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import time
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 import pytest
@@ -12,8 +13,10 @@ from nyx.bot.cogs.productivity import (
     MIN_CYCLE_INTERVAL,
     Productivity,
     clamp_interval,
+    format_local_time,
     format_todo_list,
     humanize_ago,
+    resolve_timezone,
 )
 from nyx.config import AppConfig
 from nyx.db import Database
@@ -208,6 +211,64 @@ def test_config_cleans_status_cycle_presets():
 
 
 # --------------------------------------------------------------------------
+# Timezone resolution
+# --------------------------------------------------------------------------
+@pytest.mark.parametrize(
+    "name",
+    ["Asia/Kolkata", "Europe/London", "America/New_York", "Australia/Sydney"],
+)
+def test_resolve_iana_names(name):
+    assert str(resolve_timezone(name)) == name
+
+
+@pytest.mark.parametrize(
+    "text,offset",
+    [
+        ("UTC+5:30", timedelta(hours=5, minutes=30)),
+        ("+05:30", timedelta(hours=5, minutes=30)),
+        ("UTC-8", timedelta(hours=-8)),
+        ("-03:00", timedelta(hours=-3)),
+        ("+0", timedelta(0)),
+    ],
+)
+def test_resolve_offsets(text, offset):
+    assert resolve_timezone(text).utcoffset(None) == offset
+
+
+@pytest.mark.parametrize(
+    "text,expected",
+    [
+        ("kolkata", "Asia/Kolkata"),
+        ("Kolkata", "Asia/Kolkata"),
+        ("new york", "America/New_York"),
+        ("nyc", "America/New_York"),
+        ("london", "Europe/London"),
+        ("tokyo", "Asia/Tokyo"),
+    ],
+)
+def test_resolve_city_aliases(text, expected):
+    assert str(resolve_timezone(text)) == expected
+
+
+@pytest.mark.parametrize("text", ["Atlantis", "", "   ", "UTC+99", "Mars/Olympus"])
+def test_resolve_rejects_unknown(text):
+    with pytest.raises(ValueError):
+        resolve_timezone(text)
+
+
+def test_format_local_time_converts_correctly():
+    fixed = timezone(timedelta(hours=5, minutes=30))
+    moment = datetime(2026, 1, 1, 12, 0, tzinfo=timezone.utc)
+    assert format_local_time(fixed, now=moment).startswith("2026-01-01 17:30")
+
+
+def test_format_local_time_uses_zone_abbreviation():
+    moment = datetime(2026, 1, 1, 12, 0, tzinfo=timezone.utc)
+    out = format_local_time(resolve_timezone("Asia/Kolkata"), now=moment)
+    assert "IST" in out or "+0530" in out
+
+
+# --------------------------------------------------------------------------
 # Cog registration
 # --------------------------------------------------------------------------
 async def test_cog_registers_seen_and_todo():
@@ -216,7 +277,7 @@ async def test_cog_registers_seen_and_todo():
     cog = bot.get_cog("Productivity")
     assert cog is not None
     names = {c.name for c in cog.get_commands()}
-    assert {"seen", "todo", "statuscycle"} <= names
+    assert {"seen", "todo", "statuscycle", "tz"} <= names
 
     todo_cmd = bot.get_command("todo")
     assert isinstance(todo_cmd, commands.Group)
