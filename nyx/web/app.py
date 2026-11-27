@@ -19,12 +19,15 @@ from fastapi import Depends, FastAPI, HTTPException, Request, WebSocket, WebSock
 from fastapi.responses import HTMLResponse, JSONResponse
 from pydantic import BaseModel, Field
 
+from nyx.bootstrap import ensure_runtime_files, print_banner
 from nyx.bot.runner import BotRunner, LogBus
 from nyx.config import (
     CONFIG_PATH,
     ENV_PATH,
     ConfigManager,
+    get_host,
     get_pin,
+    get_port,
     get_token,
     load_env,
     mask_token,
@@ -378,7 +381,9 @@ def _discover_cogs() -> list[str]:
 
 def create_default_app() -> FastAPI:
     """Production entry point used by uvicorn --factory and systemd."""
+    boot = ensure_runtime_files()
     load_env()
+    print_banner(boot, token_configured=bool(get_token()))
     config = ConfigManager(CONFIG_PATH)
     db = Database(resolve_path(config.get().db_path))
     bus = LogBus()
@@ -389,4 +394,9 @@ def create_default_app() -> FastAPI:
 if __name__ == "__main__":  # pragma: no cover
     import uvicorn
 
-    uvicorn.run(create_default_app(), host="127.0.0.1", port=8765, log_level="info")
+    uvicorn.run(
+        create_default_app(),
+        host=get_host(),
+        port=get_port(),
+        log_level="info",
+    )

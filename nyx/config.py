@@ -227,6 +227,20 @@ def get_pin() -> str:
     return (os.getenv("WEB_UI_PIN") or "").strip()
 
 
+def get_host() -> str:
+    """Bind address for the web UI (``WEB_UI_HOST``, legacy ``WEB_HOST``)."""
+    return (os.getenv("WEB_UI_HOST") or os.getenv("WEB_HOST") or "127.0.0.1").strip()
+
+
+def get_port() -> int:
+    """Bind port for the web UI (``WEB_UI_PORT``, legacy ``WEB_PORT``)."""
+    raw = os.getenv("WEB_UI_PORT") or os.getenv("WEB_PORT") or "8765"
+    try:
+        return int(str(raw).strip())
+    except (TypeError, ValueError):
+        return 8765
+
+
 def mask_token(token: str) -> str:
     """Render a token safe for display: never reveal more than the last 4."""
     if not token:
