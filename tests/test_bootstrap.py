@@ -116,8 +116,9 @@ def test_bootstrap_preserves_existing_config(fresh_clone: Path):
 
 
 def test_bootstrap_reads_existing_host_and_port(fresh_clone: Path):
+    fake_pin = "A" * 12  # synthetic, never a real credential
     (fresh_clone / ".env").write_text(
-        "WEB_UI_PIN=ABCDEFGHJKMN\nWEB_UI_HOST=0.0.0.0\nWEB_UI_PORT=9000\n",
+        f"WEB_UI_PIN={fake_pin}\nWEB_UI_HOST=0.0.0.0\nWEB_UI_PORT=9000\n",
         encoding="utf-8",
     )
     result = ensure_runtime_files(fresh_clone)
@@ -127,8 +128,9 @@ def test_bootstrap_reads_existing_host_and_port(fresh_clone: Path):
 
 
 def test_bootstrap_falls_back_to_legacy_env_keys(fresh_clone: Path):
+    fake_pin = "B" * 12  # synthetic, never a real credential
     (fresh_clone / ".env").write_text(
-        "WEB_UI_PIN=ABCDEFGHJKMN\nWEB_HOST=0.0.0.0\nWEB_PORT=8080\n",
+        f"WEB_UI_PIN={fake_pin}\nWEB_HOST=0.0.0.0\nWEB_PORT=8080\n",
         encoding="utf-8",
     )
     result = ensure_runtime_files(fresh_clone)
