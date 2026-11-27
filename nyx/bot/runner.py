@@ -181,10 +181,12 @@ class BotRunner:
         config: ConfigManager,
         log_bus: LogBus | None = None,
         token_provider: Callable[[], str] = get_token,
+        db: Any | None = None,
     ) -> None:
         self.config = config
         self.log_bus = log_bus or LogBus()
         self._token_provider = token_provider
+        self.db = db
         self._client: commands.Bot | None = None
         self._task: asyncio.Task[None] | None = None
         self._status = STATUS_STOPPED
@@ -237,6 +239,10 @@ class BotRunner:
             command_prefix=cfg.prefix,
             help_command=None,
         )
+        # dependency injection for cogs loaded as extensions
+        client.db = self.db  # type: ignore[attr-defined]
+        client.config_manager = self.config  # type: ignore[attr-defined]
+        client.log_bus = self.log_bus  # type: ignore[attr-defined]
 
         @client.event
         async def on_ready() -> None:  # pragma: no cover - needs live gateway
