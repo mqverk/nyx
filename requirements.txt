@@ -6,6 +6,7 @@ websockets==17.4
 aiosqlite==0.22.1
 pydantic==2.14.4
 python-dotenv==1.2.4
+Pillow==13.0.0
 
 # Tests
 pytest==9.2.0

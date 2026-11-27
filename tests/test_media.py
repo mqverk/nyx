@@ -2,10 +2,19 @@
 
 from __future__ import annotations
 
+import io
+
 import pytest
 from discord.ext import commands
+from PIL import Image
 
-from nyx.bot.cogs.media import MAX_GHOST_SECONDS, EditTracker, Media, ghost_delay
+from nyx.bot.cogs.media import (
+    MAX_GHOST_SECONDS,
+    EditTracker,
+    Media,
+    ghost_delay,
+    render_quote_png,
+)
 
 
 # --------------------------------------------------------------------------
@@ -94,6 +103,35 @@ def test_ghost_delay_never_below_one_second():
 
 
 # --------------------------------------------------------------------------
+# .quote PNG rendering
+# --------------------------------------------------------------------------
+def test_quote_png_is_a_valid_png():
+    png = render_quote_png("alice", "2026-01-01 12:00 UTC", "hello world")
+    assert png.startswith(b"\x89PNG\r\n\x1a\n")
+    image = Image.open(io.BytesIO(png))
+    assert image.format == "PNG"
+    assert image.width == 820
+    assert image.height > 100
+
+
+def test_quote_png_grows_with_wrapped_text():
+    short = Image.open(io.BytesIO(render_quote_png("a", "t", "hi"))).height
+    long = Image.open(io.BytesIO(render_quote_png("a", "t", "word " * 200))).height
+    assert long > short
+
+
+def test_quote_png_handles_empty_text():
+    png = render_quote_png("a", "t", "")
+    assert png.startswith(b"\x89PNG\r\n\x1a\n")
+
+
+def test_quote_png_caps_line_count():
+    png = render_quote_png("a", "t", "line\n" * 100)
+    image = Image.open(io.BytesIO(png))
+    assert image.height <= 44 * 2 + 74 + 24 * 36
+
+
+# --------------------------------------------------------------------------
 # Cog registration
 # --------------------------------------------------------------------------
 async def test_cog_registers_editsnipe_with_alias():
@@ -102,7 +140,7 @@ async def test_cog_registers_editsnipe_with_alias():
     cog = bot.get_cog("Media")
     assert cog is not None
     names = {c.name for c in cog.get_commands()}
-    assert {"editsnipe", "ghost", "bookmark"} <= names
+    assert {"editsnipe", "ghost", "bookmark", "quote"} <= names
     assert bot.get_command("es") is not None
     assert bot.get_command("es").name == "editsnipe"
     await bot.close()

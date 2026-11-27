@@ -8,15 +8,30 @@ from __future__ import annotations
 
 import asyncio
 import contextlib
+import io
+import textwrap
 import time
 from typing import Any
 
 import discord
 from discord.ext import commands
+from PIL import Image, ImageDraw, ImageFont
 
 from nyx.bot.cogs.core import human_duration, parse_duration
 
 MAX_GHOST_SECONDS = 86400  # 24h hard cap
+QUOTE_WIDTH = 820
+QUOTE_PAD = 44
+QUOTE_MAX_LINES = 24
+
+_FONT_REGULAR = (
+    "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf",
+    "/usr/share/fonts/truetype/liberation/LiberationSans-Regular.ttf",
+)
+_FONT_BOLD = (
+    "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf",
+    "/usr/share/fonts/truetype/liberation/LiberationSans-Bold.ttf",
+)
 
 
 # ---------------------------------------------------------------------------
@@ -28,6 +43,64 @@ def ghost_delay(duration: str) -> int:
     if seconds <= 0:
         raise ValueError("duration must be positive")
     return max(1, min(seconds, MAX_GHOST_SECONDS))
+
+
+def _font(size: int, bold: bool = False) -> Any:
+    for path in (_FONT_BOLD if bold else _FONT_REGULAR):
+        try:
+            return ImageFont.truetype(path, size)
+        except OSError:
+            continue
+    return ImageFont.load_default()
+
+
+def render_quote_png(
+    display_name: str,
+    timestamp: str,
+    text: str,
+    width: int = QUOTE_WIDTH,
+) -> bytes:
+    """Render a dark-mode quote card and return PNG bytes."""
+    body = (text or "").strip() or "[no text]"
+    name_font = _font(26, bold=True)
+    meta_font = _font(17)
+    body_font = _font(24)
+
+    lines: list[str] = []
+    for paragraph in body.splitlines() or [""]:
+        lines.extend(textwrap.wrap(paragraph, width=52) or [""])
+    lines = lines[:QUOTE_MAX_LINES]
+    if len(lines) == QUOTE_MAX_LINES:
+        lines[-1] = lines[-1][:49] + "…"
+
+    line_height = 36
+    body_height = len(lines) * line_height
+    height = QUOTE_PAD * 2 + 74 + body_height
+
+    image = Image.new("RGBA", (width, height), (0, 0, 0, 0))
+    draw = ImageDraw.Draw(image)
+
+    draw.rounded_rectangle(
+        [0, 0, width - 1, height - 1], radius=26,
+        fill=(11, 13, 18, 255), outline=(35, 42, 58, 255), width=2,
+    )
+    draw.rounded_rectangle(
+        [QUOTE_PAD, QUOTE_PAD + 4, QUOTE_PAD + 6, height - QUOTE_PAD - 4],
+        radius=3, fill=(124, 92, 255, 255),
+    )
+
+    x = QUOTE_PAD + 26
+    draw.text((x, QUOTE_PAD), display_name or "unknown", font=name_font, fill=(232, 236, 246, 255))
+    draw.text((x, QUOTE_PAD + 34), timestamp or "", font=meta_font, fill=(123, 133, 156, 255))
+
+    y = QUOTE_PAD + 74
+    for line in lines:
+        draw.text((x, y), line, font=body_font, fill=(214, 220, 235, 255))
+        y += line_height
+
+    buffer = io.BytesIO()
+    image.save(buffer, format="PNG", optimize=True)
+    return buffer.getvalue()
 
 
 class EditTracker:
@@ -177,6 +250,28 @@ class Media(commands.Cog, name="Media"):
             saved_by_name=str(ctx.author),
         )
         await ctx.send(f"🔖 bookmarked as #{bookmark_id}")
+
+    @commands.command(name="quote")
+    async def quote(
+        self, ctx: commands.Context, message: discord.Message | None = None
+    ) -> None:
+        """Render a replied-to message as a dark-mode PNG quote card."""
+        target = message
+        if target is None:
+            reference = getattr(ctx.message, "reference", None)
+            target = getattr(reference, "resolved", None) if reference else None
+        if not isinstance(target, discord.Message):
+            await ctx.send("reply to a message to quote it")
+            return
+
+        created = getattr(target, "created_at", None)
+        stamp = created.strftime("%Y-%m-%d %H:%M UTC") if created else ""
+        png = render_quote_png(
+            str(getattr(target, "author", "unknown")),
+            stamp,
+            target.content or "",
+        )
+        await ctx.send(file=discord.File(io.BytesIO(png), filename="quote.png"))
 
 
 async def setup(bot: commands.Bot) -> None:
