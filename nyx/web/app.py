@@ -28,6 +28,7 @@ from nyx.config import (
     get_token,
     load_env,
     mask_token,
+    resolve_path,
     set_env_value,
 )
 from nyx.db import Database
@@ -379,7 +380,7 @@ def create_default_app() -> FastAPI:
     """Production entry point used by uvicorn --factory and systemd."""
     load_env()
     config = ConfigManager(CONFIG_PATH)
-    db = Database(config.get().db_path)
+    db = Database(resolve_path(config.get().db_path))
     bus = LogBus()
     runner = BotRunner(config, log_bus=bus, db=db)
     return create_app(runner=runner, db=db, config=config, log_bus=bus)

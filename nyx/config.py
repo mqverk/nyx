@@ -27,11 +27,13 @@ from pydantic import BaseModel, Field, field_validator
 ROOT = Path(__file__).resolve().parent.parent
 ENV_PATH = ROOT / ".env"
 CONFIG_PATH = ROOT / "config.json"
+DATA_DIR = ROOT / "data"
 
 __all__ = [
     "ROOT",
     "ENV_PATH",
     "CONFIG_PATH",
+    "DATA_DIR",
     "PresenceConfig",
     "AfkConfig",
     "AppConfig",
@@ -41,7 +43,21 @@ __all__ = [
     "get_pin",
     "mask_token",
     "set_env_value",
+    "resolve_path",
 ]
+
+
+def resolve_path(value: str | Path, *, base: Path | None = None) -> Path:
+    """Resolve a possibly-relative path against the repository root.
+
+    This is what makes nyx location-independent: a relative ``db_path`` in
+    ``config.json`` always lands inside the clone, never inside whatever
+    directory the process happened to be started from.
+    """
+    path = Path(value).expanduser()
+    if path.is_absolute():
+        return path
+    return (base or ROOT) / path
 
 
 class PresenceConfig(BaseModel):

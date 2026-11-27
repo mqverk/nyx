@@ -12,9 +12,11 @@ import pytest
 from pydantic import ValidationError
 
 from nyx.config import (
+    ROOT,
     AppConfig,
     ConfigManager,
     mask_token,
+    resolve_path,
     set_env_value,
 )
 
@@ -118,6 +120,32 @@ def test_save_is_atomic_no_temp_left_behind(tmp_path: Path):
     mgr.save(AppConfig(prefix="!"))
     leftovers = [p.name for p in tmp_path.iterdir() if p.name.startswith(".config-")]
     assert leftovers == []
+
+
+# --------------------------------------------------------------------------
+# Path portability
+# --------------------------------------------------------------------------
+def test_root_points_at_repo_root():
+    assert (ROOT / "nyx" / "config.py").is_file()
+    assert (ROOT / "pytest.ini").is_file()
+    assert ROOT.is_absolute()
+
+
+def test_resolve_path_relative_lands_in_repo():
+    assert resolve_path("data/nyx.db") == ROOT / "data" / "nyx.db"
+
+
+def test_resolve_path_absolute_is_untouched():
+    absolute = Path("/tmp/somewhere/nyx.db")
+    assert resolve_path(absolute) == absolute
+
+
+def test_resolve_path_expands_home():
+    assert resolve_path("~/nyx.db").is_absolute()
+
+
+def test_resolve_path_custom_base(tmp_path: Path):
+    assert resolve_path("a/b.db", base=tmp_path) == tmp_path / "a" / "b.db"
 
 
 # --------------------------------------------------------------------------

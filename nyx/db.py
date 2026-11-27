@@ -21,6 +21,8 @@ from typing import Any, Iterable, Sequence
 
 import aiosqlite
 
+from nyx.config import ROOT
+
 SCHEMA = """
 CREATE TABLE IF NOT EXISTS keyword_hits (
     id           INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -125,7 +127,9 @@ class Database:
     """Serialized async wrapper around a single SQLite file."""
 
     def __init__(self, path: str | Path = "data/nyx.db") -> None:
-        self.path = Path(path)
+        candidate = Path(path).expanduser()
+        # relative paths always resolve inside the clone, never the cwd
+        self.path = candidate if candidate.is_absolute() else ROOT / candidate
         self._conn: aiosqlite.Connection | None = None
         self._lock = asyncio.Lock()
 

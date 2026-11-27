@@ -10,6 +10,7 @@ import aiosqlite
 import pytest
 
 from nyx.db import TABLES, Database
+from nyx.config import ROOT
 
 
 @pytest.fixture
@@ -193,3 +194,21 @@ async def test_bookmark_table_exists(db: Database):
             "SELECT name FROM sqlite_master WHERE type='table' AND name='bookmarks'"
         )
         assert await cur.fetchone() is not None
+
+
+# --------------------------------------------------------------------------
+# Path portability
+# --------------------------------------------------------------------------
+def test_relative_db_path_resolves_under_repo_root():
+    database = Database("data/nyx.db")
+    assert database.path.is_absolute()
+    assert database.path == ROOT / "data" / "nyx.db"
+
+
+def test_absolute_db_path_is_respected(tmp_path: Path):
+    target = tmp_path / "custom.db"
+    assert Database(target).path == target
+
+
+def test_db_path_expands_home():
+    assert Database("~/nyx-test.db").path.is_absolute()
