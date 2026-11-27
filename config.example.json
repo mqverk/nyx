@@ -1,0 +1,21 @@
+{
+  "prefix": ".",
+  "presence": {
+    "status": "online",
+    "text": "",
+    "emoji": "",
+    "state": ""
+  },
+  "afk": {
+    "enabled": false,
+    "message": "I'm away right now — I'll get back to you."
+  },
+  "keywords": [],
+  "snippets": {},
+  "cogs": {
+    "core": true,
+    "automation": true
+  },
+  "log_level": "INFO",
+  "db_path": "data/nyx.db"
+}
