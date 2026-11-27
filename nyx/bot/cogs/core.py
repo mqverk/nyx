@@ -168,6 +168,13 @@ def format_roles(member: Any) -> str:
     )
 
 
+def first_message_url(messages: Any) -> str | None:
+    """Return the jump URL of the first message yielded, or None if empty."""
+    for message in messages or []:
+        return getattr(message, "jump_url", None)
+    return None
+
+
 # ---------------------------------------------------------------------------
 # Cog
 # ---------------------------------------------------------------------------
@@ -354,6 +361,22 @@ class Core(commands.Cog, name="Core"):
         """List a member's roles in hierarchy order."""
         target = member or ctx.author
         await ctx.send(f"**{target.display_name}** roles:\n{format_roles(target)}")
+
+    @commands.command(name="firstmsg")
+    async def firstmsg(self, ctx: commands.Context) -> None:
+        """Jump to the earliest message in this channel or DM."""
+        try:
+            async for message in ctx.channel.history(limit=1, oldest_first=True):
+                url = first_message_url([message])
+                if url:
+                    await ctx.send(f"first message in this channel: {url}")
+                else:
+                    await ctx.send("could not build a jump link for that message")
+                return
+        except discord.HTTPException as exc:
+            await ctx.send(f"could not read channel history: {exc}")
+            return
+        await ctx.send("no messages found in this channel")
 
 
 async def setup(bot: commands.Bot) -> None:

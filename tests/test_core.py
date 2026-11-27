@@ -11,6 +11,7 @@ from nyx.bot.cogs.core import (
     MAX_SPOILER_INPUT,
     Core,
     banner_url,
+    first_message_url,
     format_roles,
     human_duration,
     parse_duration,
@@ -230,6 +231,26 @@ def test_format_roles_numbers_from_one():
 
 
 # --------------------------------------------------------------------------
+# .firstmsg helper
+# --------------------------------------------------------------------------
+def test_first_message_url_returns_first():
+    messages = [
+        SimpleNamespace(jump_url="https://discord.com/channels/1/2/3"),
+        SimpleNamespace(jump_url="https://discord.com/channels/1/2/4"),
+    ]
+    assert first_message_url(messages) == "https://discord.com/channels/1/2/3"
+
+
+def test_first_message_url_empty_is_none():
+    assert first_message_url([]) is None
+    assert first_message_url(None) is None
+
+
+def test_first_message_url_missing_attribute():
+    assert first_message_url([SimpleNamespace()]) is None
+
+
+# --------------------------------------------------------------------------
 # Cog registration
 # --------------------------------------------------------------------------
 async def test_cog_registers_all_commands():
@@ -242,7 +263,7 @@ async def test_cog_registers_all_commands():
     assert {
         "ping", "userinfo", "serverinfo", "avatar",
         "purge", "snipe", "remind", "calc", "spoiler", "smallcaps", "mock",
-        "banner", "roles",
+        "banner", "roles", "firstmsg",
     } <= names
     await bot.close()
 
