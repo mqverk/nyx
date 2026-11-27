@@ -1,0 +1,31 @@
+[Unit]
+Description=nyx — Discord self-bot daemon with local web control panel
+Documentation=https://github.com/mqverk/nyx
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=root
+WorkingDirectory=/root/nyx
+Environment=PYTHONUNBUFFERED=1
+Environment=PYTHONDONTWRITEBYTECODE=1
+ExecStart=/root/nyx/venv/bin/python -m uvicorn nyx.web.app:create_default_app \
+    --factory --host 127.0.0.1 --port 8765 --log-level info
+Restart=on-failure
+RestartSec=5
+TimeoutStopSec=20
+KillSignal=SIGINT
+
+# Hardening — the dashboard must never be reachable off-host
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=full
+ProtectHome=read-only
+# the app rewrites .env/config.json atomically (temp file + rename), so the
+# whole project directory must stay writable, not just individual files
+ReadWritePaths=/root/nyx
+RestrictAddressFamilies=AF_INET AF_INET6 AF_UNIX
+
+[Install]
+WantedBy=multi-user.target
