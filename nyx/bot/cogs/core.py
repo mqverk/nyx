@@ -133,6 +133,19 @@ def to_smallcaps(text: str) -> str:
     return (text or "").lower().translate(_SMALLCAPS_TABLE)
 
 
+def to_mock(text: str, start_upper: bool = False) -> str:
+    """Alternate letter case; non-letters pass through without flipping."""
+    out: list[str] = []
+    upper = start_upper
+    for ch in (text or ""):
+        if ch.isalpha():
+            out.append(ch.upper() if upper else ch.lower())
+            upper = not upper
+        else:
+            out.append(ch)
+    return "".join(out)
+
+
 # ---------------------------------------------------------------------------
 # Cog
 # ---------------------------------------------------------------------------
@@ -285,6 +298,16 @@ class Core(commands.Cog, name="Core"):
             return
         with contextlib.suppress(discord.HTTPException):
             await ctx.message.edit(content=to_smallcaps(cleaned))
+
+    @commands.command(name="mock")
+    async def mock(self, ctx: commands.Context, *, text: str) -> None:
+        """Rewrite your own command message with alternating case."""
+        cleaned = (text or "").strip()
+        if not cleaned:
+            await ctx.send("usage: `.mock <text>`")
+            return
+        with contextlib.suppress(discord.HTTPException):
+            await ctx.message.edit(content=to_mock(cleaned))
 
 
 async def setup(bot: commands.Bot) -> None:

@@ -11,6 +11,7 @@ from nyx.bot.cogs.core import (
     human_duration,
     parse_duration,
     safe_eval,
+    to_mock,
     to_smallcaps,
     to_spoiler,
 )
@@ -153,6 +154,30 @@ def test_to_smallcaps_covers_whole_alphabet():
 
 
 # --------------------------------------------------------------------------
+# .mock transform
+# --------------------------------------------------------------------------
+def test_to_mock_alternates_from_lower():
+    assert to_mock("hello") == "hElLo"
+
+
+def test_to_mock_can_start_upper():
+    assert to_mock("hello", start_upper=True) == "HeLlO"
+
+
+def test_to_mock_preserves_non_letters_without_flipping():
+    assert to_mock("ab cd") == "aB cD"
+    assert to_mock("a1b") == "a1B"
+
+
+def test_to_mock_empty():
+    assert to_mock("") == ""
+
+
+def test_to_mock_is_deterministic():
+    assert to_mock("nyx") == to_mock("nyx")
+
+
+# --------------------------------------------------------------------------
 # Cog registration
 # --------------------------------------------------------------------------
 async def test_cog_registers_all_commands():
@@ -164,7 +189,7 @@ async def test_cog_registers_all_commands():
     names = {cmd.name for cmd in cog.get_commands()}
     assert {
         "ping", "userinfo", "serverinfo", "avatar",
-        "purge", "snipe", "remind", "calc", "spoiler", "smallcaps",
+        "purge", "snipe", "remind", "calc", "spoiler", "smallcaps", "mock",
     } <= names
     await bot.close()
 
