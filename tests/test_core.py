@@ -11,6 +11,7 @@ from nyx.bot.cogs.core import (
     MAX_SPOILER_INPUT,
     Core,
     banner_url,
+    format_roles,
     human_duration,
     parse_duration,
     safe_eval,
@@ -198,6 +199,37 @@ def test_banner_url_none_when_banner_has_no_url():
 
 
 # --------------------------------------------------------------------------
+# .roles helper
+# --------------------------------------------------------------------------
+def _role(name: str, position: int):
+    return SimpleNamespace(name=name, position=position)
+
+
+def test_format_roles_sorts_by_hierarchy():
+    member = SimpleNamespace(roles=[
+        _role("@everyone", 0),
+        _role("Member", 1),
+        _role("Admin", 5),
+        _role("Mod", 3),
+    ])
+    assert format_roles(member) == "1. Admin\n2. Mod\n3. Member"
+
+
+def test_format_roles_excludes_everyone():
+    member = SimpleNamespace(roles=[_role("@everyone", 0)])
+    assert format_roles(member) == "no roles"
+
+
+def test_format_roles_handles_no_roles_attribute():
+    assert format_roles(SimpleNamespace()) == "no roles"
+
+
+def test_format_roles_numbers_from_one():
+    member = SimpleNamespace(roles=[_role("A", 2), _role("B", 1)])
+    assert format_roles(member).splitlines()[0].startswith("1. A")
+
+
+# --------------------------------------------------------------------------
 # Cog registration
 # --------------------------------------------------------------------------
 async def test_cog_registers_all_commands():
@@ -210,7 +242,7 @@ async def test_cog_registers_all_commands():
     assert {
         "ping", "userinfo", "serverinfo", "avatar",
         "purge", "snipe", "remind", "calc", "spoiler", "smallcaps", "mock",
-        "banner",
+        "banner", "roles",
     } <= names
     await bot.close()
 

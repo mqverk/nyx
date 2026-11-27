@@ -152,6 +152,22 @@ def banner_url(user: Any) -> str | None:
     return getattr(banner, "url", None)
 
 
+def format_roles(member: Any) -> str:
+    """List a member's roles highest-first, excluding @everyone."""
+    roles = [
+        role
+        for role in (getattr(member, "roles", None) or [])
+        if getattr(role, "name", "") != "@everyone"
+    ]
+    roles.sort(key=lambda role: getattr(role, "position", 0), reverse=True)
+    if not roles:
+        return "no roles"
+    return "\n".join(
+        f"{index}. {getattr(role, 'name', 'unknown')}"
+        for index, role in enumerate(roles, 1)
+    )
+
+
 # ---------------------------------------------------------------------------
 # Cog
 # ---------------------------------------------------------------------------
@@ -330,6 +346,14 @@ class Core(commands.Cog, name="Core"):
             await ctx.send(f"{target.display_name} has no profile banner")
             return
         await ctx.send(url)
+
+    @commands.command(name="roles")
+    async def roles(
+        self, ctx: commands.Context, member: discord.Member | None = None
+    ) -> None:
+        """List a member's roles in hierarchy order."""
+        target = member or ctx.author
+        await ctx.send(f"**{target.display_name}** roles:\n{format_roles(target)}")
 
 
 async def setup(bot: commands.Bot) -> None:
