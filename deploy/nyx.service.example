@@ -1,0 +1,28 @@
+[Unit]
+Description=nyx — Discord self-bot with local web control panel
+Documentation=https://github.com/mqverk/nyx
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=<YOUR_USER>
+WorkingDirectory=<PATH_TO_NYX>
+Environment=PYTHONUNBUFFERED=1
+Environment=PYTHONDONTWRITEBYTECODE=1
+ExecStart=<PATH_TO_NYX>/venv/bin/python <PATH_TO_NYX>/run.py
+Restart=on-failure
+RestartSec=5
+TimeoutStopSec=20
+KillSignal=SIGINT
+
+# Hardening. The app rewrites .env/config.json atomically (temp file + rename),
+# so the project directory itself must stay writable.
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=full
+ProtectHome=read-only
+ReadWritePaths=<PATH_TO_NYX>
+
+[Install]
+WantedBy=multi-user.target

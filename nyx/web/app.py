@@ -379,11 +379,12 @@ def _discover_cogs() -> list[str]:
     return CogManager(_Null()).discover()  # type: ignore[arg-type]
 
 
-def create_default_app() -> FastAPI:
+def create_default_app(*, announce: bool = True) -> FastAPI:
     """Production entry point used by uvicorn --factory and systemd."""
     boot = ensure_runtime_files()
     load_env()
-    print_banner(boot, token_configured=bool(get_token()))
+    if announce:
+        print_banner(boot, token_configured=bool(get_token()))
     config = ConfigManager(CONFIG_PATH)
     db = Database(resolve_path(config.get().db_path))
     bus = LogBus()
