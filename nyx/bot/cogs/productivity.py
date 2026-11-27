@@ -31,6 +31,18 @@ def humanize_ago(ts: float, now: float | None = None) -> str:
     return f"{int(delta // 604800)}w ago"
 
 
+def format_todo_list(rows: list[dict[str, Any]], limit: int = 1900) -> str:
+    """Render todo rows as a compact checklist, truncated to a safe length."""
+    if not rows:
+        return "no todos yet — add one with `.todo add <text>`"
+    lines = []
+    for row in rows:
+        mark = "✅" if row.get("done") else "⬜"
+        lines.append(f"{mark} `#{row.get('id')}` {row.get('text', '')}")
+    text = "\n".join(lines)
+    return text if len(text) <= limit else text[: limit - 1] + "…"
+
+
 # ---------------------------------------------------------------------------
 # Cog
 # ---------------------------------------------------------------------------
@@ -99,6 +111,57 @@ class Productivity(commands.Cog, name="Productivity"):
             f"**{target.display_name}** was last active "
             f"{humanize_ago(record['ts'])} in #{channel} ({guild})"
         )
+
+    @commands.group(name="todo", invoke_without_command=True)
+    async def todo(self, ctx: commands.Context) -> None:
+        await ctx.send(
+            "usage: `.todo add <text>` · `.todo list` · "
+            "`.todo done <id>` · `.todo remove <id>`"
+        )
+
+    @todo.command(name="add")
+    async def todo_add(self, ctx: commands.Context, *, text: str) -> None:
+        database = self.db
+        if database is None:
+            await ctx.send("storage unavailable")
+            return
+        cleaned = (text or "").strip()
+        if not cleaned:
+            await ctx.send("todo text cannot be empty")
+            return
+        todo_id = await database.add_todo(ctx.author.id, cleaned[:500])
+        await ctx.send(f"added todo `#{todo_id}`")
+
+    @todo.command(name="list")
+    async def todo_list(self, ctx: commands.Context) -> None:
+        database = self.db
+        if database is None:
+            await ctx.send("storage unavailable")
+            return
+        rows = await database.list_todos(ctx.author.id)
+        await ctx.send(format_todo_list(rows))
+
+    @todo.command(name="done")
+    async def todo_done(self, ctx: commands.Context, todo_id: int) -> None:
+        database = self.db
+        if database is None:
+            await ctx.send("storage unavailable")
+            return
+        if await database.complete_todo(ctx.author.id, todo_id):
+            await ctx.send(f"✅ completed `#{todo_id}`")
+        else:
+            await ctx.send(f"no todo `#{todo_id}` of yours")
+
+    @todo.command(name="remove")
+    async def todo_remove(self, ctx: commands.Context, todo_id: int) -> None:
+        database = self.db
+        if database is None:
+            await ctx.send("storage unavailable")
+            return
+        if await database.remove_todo(ctx.author.id, todo_id):
+            await ctx.send(f"🗑️ removed `#{todo_id}`")
+        else:
+            await ctx.send(f"no todo `#{todo_id}` of yours")
 
 
 async def setup(bot: commands.Bot) -> None:

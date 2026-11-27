@@ -100,13 +100,23 @@ CREATE TABLE IF NOT EXISTS last_seen (
     channel_name TEXT
 );
 CREATE INDEX IF NOT EXISTS idx_last_seen_ts ON last_seen(ts DESC);
+
+CREATE TABLE IF NOT EXISTS todos (
+    id       INTEGER PRIMARY KEY AUTOINCREMENT,
+    ts       REAL    NOT NULL,
+    owner_id INTEGER NOT NULL,
+    text     TEXT    NOT NULL,
+    done     INTEGER NOT NULL DEFAULT 0,
+    done_ts  REAL
+);
+CREATE INDEX IF NOT EXISTS idx_todos_owner ON todos(owner_id, done, id);
 """
 
 # Event tables: pruned by ``cleanup()``.
 TABLES = ("keyword_hits", "snipes", "command_audit")
 
 # User-owned tables: never auto-pruned.
-USER_TABLES = ("bookmarks", "last_seen")
+USER_TABLES = ("bookmarks", "last_seen", "todos")
 
 ALL_TABLES = TABLES + USER_TABLES
 
@@ -395,6 +405,43 @@ class Database:
             "SELECT * FROM last_seen WHERE user_id = ?", (int(user_id),)
         )
         return rows[0] if rows else None
+
+    # -- todos -------------------------------------------------------------
+    async def add_todo(self, owner_id: int, text: str, ts: float | None = None) -> int:
+        async with self._lock:
+            cur = await self.conn.execute(
+                "INSERT INTO todos (ts, owner_id, text, done) VALUES (?,?,?,0)",
+                (ts or time.time(), int(owner_id), text),
+            )
+            await self.conn.commit()
+            return int(cur.lastrowid or 0)
+
+    async def list_todos(
+        self, owner_id: int, include_done: bool = True
+    ) -> list[dict[str, Any]]:
+        sql = "SELECT * FROM todos WHERE owner_id = ?"
+        if not include_done:
+            sql += " AND done = 0"
+        sql += " ORDER BY done ASC, id ASC"
+        return await self._rows(sql, (int(owner_id),))
+
+    async def complete_todo(self, owner_id: int, todo_id: int) -> bool:
+        async with self._lock:
+            cur = await self.conn.execute(
+                "UPDATE todos SET done = 1, done_ts = ? WHERE id = ? AND owner_id = ?",
+                (time.time(), int(todo_id), int(owner_id)),
+            )
+            await self.conn.commit()
+            return (cur.rowcount or 0) > 0
+
+    async def remove_todo(self, owner_id: int, todo_id: int) -> bool:
+        async with self._lock:
+            cur = await self.conn.execute(
+                "DELETE FROM todos WHERE id = ? AND owner_id = ?",
+                (int(todo_id), int(owner_id)),
+            )
+            await self.conn.commit()
+            return (cur.rowcount or 0) > 0
 
     # -- maintenance -------------------------------------------------------
     async def cleanup(self, days: int = 30) -> dict[str, int]:
