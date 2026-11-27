@@ -16,6 +16,8 @@
     "core": true,
     "automation": true
   },
+  "status_cycle": [],
+  "status_cycle_interval": 60,
   "log_level": "INFO",
   "db_path": "data/nyx.db"
 }

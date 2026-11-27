@@ -8,7 +8,14 @@ from pathlib import Path
 import pytest
 from discord.ext import commands
 
-from nyx.bot.cogs.productivity import Productivity, format_todo_list, humanize_ago
+from nyx.bot.cogs.productivity import (
+    MIN_CYCLE_INTERVAL,
+    Productivity,
+    clamp_interval,
+    format_todo_list,
+    humanize_ago,
+)
+from nyx.config import AppConfig
 from nyx.db import Database
 
 
@@ -172,6 +179,35 @@ def test_format_todo_list_truncates():
 
 
 # --------------------------------------------------------------------------
+# Status cycle interval clamping
+# --------------------------------------------------------------------------
+@pytest.mark.parametrize(
+    "value,expected",
+    [
+        (30, 60), (59, 60), (60, 60), (61, 61), (120, 120),
+        ("90", 90), ("abc", 60), (None, 60), (-5, 60), (0, 60), (1.9, 60),
+    ],
+)
+def test_clamp_interval_enforces_60s_floor(value, expected):
+    assert clamp_interval(value) == expected
+
+
+def test_min_cycle_interval_is_60():
+    assert MIN_CYCLE_INTERVAL == 60
+
+
+def test_config_clamps_status_cycle_interval():
+    assert AppConfig(status_cycle_interval=10).status_cycle_interval == 60
+    assert AppConfig(status_cycle_interval=0).status_cycle_interval == 60
+    assert AppConfig(status_cycle_interval=300).status_cycle_interval == 300
+
+
+def test_config_cleans_status_cycle_presets():
+    cfg = AppConfig(status_cycle=["  listening  ", "", "   ", "coding"])
+    assert cfg.status_cycle == ["listening", "coding"]
+
+
+# --------------------------------------------------------------------------
 # Cog registration
 # --------------------------------------------------------------------------
 async def test_cog_registers_seen_and_todo():
@@ -180,7 +216,7 @@ async def test_cog_registers_seen_and_todo():
     cog = bot.get_cog("Productivity")
     assert cog is not None
     names = {c.name for c in cog.get_commands()}
-    assert {"seen", "todo"} <= names
+    assert {"seen", "todo", "statuscycle"} <= names
 
     todo_cmd = bot.get_command("todo")
     assert isinstance(todo_cmd, commands.Group)

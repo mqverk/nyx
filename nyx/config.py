@@ -71,8 +71,21 @@ class AppConfig(BaseModel):
     cogs: dict[str, bool] = Field(
         default_factory=lambda: {"core": True, "automation": True}
     )
+    status_cycle: list[str] = Field(default_factory=list)
+    status_cycle_interval: int = 60
     log_level: str = "INFO"
     db_path: str = "data/nyx.db"
+
+    @field_validator("status_cycle")
+    @classmethod
+    def _clean_status_cycle(cls, value: list[str]) -> list[str]:
+        return [item.strip() for item in value if item and item.strip()]
+
+    @field_validator("status_cycle_interval")
+    @classmethod
+    def _clamp_status_interval(cls, value: int) -> int:
+        """Rotation can never be faster than 60s — Discord rate limits."""
+        return max(60, int(value))
 
     @field_validator("prefix")
     @classmethod
