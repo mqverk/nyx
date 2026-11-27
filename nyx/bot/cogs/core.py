@@ -111,6 +111,14 @@ def human_duration(seconds: int) -> str:
     return " ".join(parts) or "0s"
 
 
+MAX_SPOILER_INPUT = 400  # 5 chars per spoiler ("||x||") stays under 2000
+
+
+def to_spoiler(text: str) -> str:
+    """Wrap every character in its own ``||spoiler||`` tag."""
+    return "".join(f"||{ch}||" for ch in (text or ""))
+
+
 # ---------------------------------------------------------------------------
 # Cog
 # ---------------------------------------------------------------------------
@@ -240,6 +248,19 @@ class Core(commands.Cog, name="Core"):
             await ctx.send(f"error: {exc}")
             return
         await ctx.send(f"`{expr}` = **{result}**")
+
+    @commands.command(name="spoiler")
+    async def spoiler(self, ctx: commands.Context, *, text: str) -> None:
+        """Rewrite your own command message with per-character spoilers."""
+        cleaned = (text or "").strip()
+        if not cleaned:
+            await ctx.send("usage: `.spoiler <text>`")
+            return
+        if len(cleaned) > MAX_SPOILER_INPUT:
+            await ctx.send(f"too long — max {MAX_SPOILER_INPUT} characters")
+            return
+        with contextlib.suppress(discord.HTTPException):
+            await ctx.message.edit(content=to_spoiler(cleaned))
 
 
 async def setup(bot: commands.Bot) -> None:

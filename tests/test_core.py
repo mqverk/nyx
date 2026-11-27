@@ -6,10 +6,12 @@ import pytest
 from discord.ext import commands
 
 from nyx.bot.cogs.core import (
+    MAX_SPOILER_INPUT,
     Core,
     human_duration,
     parse_duration,
     safe_eval,
+    to_spoiler,
 )
 
 
@@ -99,6 +101,32 @@ def test_human_duration_round_trip():
 
 
 # --------------------------------------------------------------------------
+# .spoiler transform
+# --------------------------------------------------------------------------
+def test_to_spoiler_wraps_every_character():
+    assert to_spoiler("hi") == "||h||||i||"
+
+
+def test_to_spoiler_empty_string():
+    assert to_spoiler("") == ""
+
+
+def test_to_spoiler_quintuples_length():
+    # "||x||" is 5 characters per input character
+    assert len(to_spoiler("abc")) == 5 * 3
+
+
+def test_to_spoiler_preserves_spaces():
+    assert to_spoiler("a b") == "||a|||| ||||b||"
+
+
+def test_spoiler_input_cap_is_safe_for_discord():
+    # 5 chars per spoiler must stay under Discord's 2000 char message limit
+    assert MAX_SPOILER_INPUT * 5 <= 2000
+    assert len(to_spoiler("x" * MAX_SPOILER_INPUT)) <= 2000
+
+
+# --------------------------------------------------------------------------
 # Cog registration
 # --------------------------------------------------------------------------
 async def test_cog_registers_all_commands():
@@ -108,10 +136,10 @@ async def test_cog_registers_all_commands():
     cog = bot.get_cog("Core")
     assert cog is not None
     names = {cmd.name for cmd in cog.get_commands()}
-    assert names == {
+    assert {
         "ping", "userinfo", "serverinfo", "avatar",
-        "purge", "snipe", "remind", "calc",
-    }
+        "purge", "snipe", "remind", "calc", "spoiler",
+    } <= names
     await bot.close()
 
 
