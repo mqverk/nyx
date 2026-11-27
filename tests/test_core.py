@@ -2,12 +2,15 @@
 
 from __future__ import annotations
 
+from types import SimpleNamespace
+
 import pytest
 from discord.ext import commands
 
 from nyx.bot.cogs.core import (
     MAX_SPOILER_INPUT,
     Core,
+    banner_url,
     human_duration,
     parse_duration,
     safe_eval,
@@ -178,6 +181,23 @@ def test_to_mock_is_deterministic():
 
 
 # --------------------------------------------------------------------------
+# .banner helper
+# --------------------------------------------------------------------------
+def test_banner_url_returns_url():
+    user = SimpleNamespace(banner=SimpleNamespace(url="https://cdn/banner.png"))
+    assert banner_url(user) == "https://cdn/banner.png"
+
+
+def test_banner_url_none_when_no_banner():
+    assert banner_url(SimpleNamespace(banner=None)) is None
+    assert banner_url(SimpleNamespace()) is None
+
+
+def test_banner_url_none_when_banner_has_no_url():
+    assert banner_url(SimpleNamespace(banner=SimpleNamespace())) is None
+
+
+# --------------------------------------------------------------------------
 # Cog registration
 # --------------------------------------------------------------------------
 async def test_cog_registers_all_commands():
@@ -190,6 +210,7 @@ async def test_cog_registers_all_commands():
     assert {
         "ping", "userinfo", "serverinfo", "avatar",
         "purge", "snipe", "remind", "calc", "spoiler", "smallcaps", "mock",
+        "banner",
     } <= names
     await bot.close()
 

@@ -146,6 +146,12 @@ def to_mock(text: str, start_upper: bool = False) -> str:
     return "".join(out)
 
 
+def banner_url(user: Any) -> str | None:
+    """Extract a user's profile banner URL, or None when they have none."""
+    banner = getattr(user, "banner", None)
+    return getattr(banner, "url", None)
+
+
 # ---------------------------------------------------------------------------
 # Cog
 # ---------------------------------------------------------------------------
@@ -308,6 +314,22 @@ class Core(commands.Cog, name="Core"):
             return
         with contextlib.suppress(discord.HTTPException):
             await ctx.message.edit(content=to_mock(cleaned))
+
+    @commands.command(name="banner")
+    async def banner(
+        self, ctx: commands.Context, member: discord.Member | None = None
+    ) -> None:
+        """Show a user's profile banner URL."""
+        target = member or ctx.author
+        url = banner_url(target)
+        if url is None:
+            # members often lack banner data; refetch the full user object
+            with contextlib.suppress(Exception):
+                url = banner_url(await self.bot.fetch_user(target.id))
+        if not url:
+            await ctx.send(f"{target.display_name} has no profile banner")
+            return
+        await ctx.send(url)
 
 
 async def setup(bot: commands.Bot) -> None:
