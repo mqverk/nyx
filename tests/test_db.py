@@ -132,3 +132,64 @@ async def test_unified_search_shape(db: Database):
     assert set(result) == {"keyword_hits", "snipes"}
     assert len(result["keyword_hits"]) == 1
     assert len(result["snipes"]) == 1
+
+
+# --------------------------------------------------------------------------
+# Bookmarks
+# --------------------------------------------------------------------------
+async def test_bookmark_persists_all_fields(db: Database):
+    bookmark_id = await db.add_bookmark(
+        content="remember this",
+        message_id=42,
+        guild_id=1,
+        guild_name="Guild",
+        channel_id=2,
+        channel_name="general",
+        author_id=3,
+        author_name="alice",
+        attachments=["https://cdn/a.png"],
+        jump_url="https://discord.com/channels/1/2/42",
+        saved_by=9,
+        saved_by_name="me",
+    )
+    rows = await db.list_bookmarks()
+    assert len(rows) == 1
+    row = rows[0]
+    assert row["id"] == bookmark_id
+    assert row["content"] == "remember this"
+    assert row["author_name"] == "alice"
+    assert row["channel_name"] == "general"
+    assert row["jump_url"].endswith("/1/2/42")
+    assert "a.png" in row["attachments"]
+    assert row["saved_by_name"] == "me"
+
+
+async def test_bookmark_search_and_delete(db: Database):
+    first = await db.add_bookmark(content="alpha note")
+    await db.add_bookmark(content="beta note")
+
+    assert len(await db.list_bookmarks("alpha")) == 1
+    assert len(await db.list_bookmarks("note")) == 2
+
+    assert await db.delete_bookmark(first) is True
+    assert await db.delete_bookmark(999999) is False
+    assert await db.count("bookmarks") == 1
+
+
+async def test_bookmarks_are_not_pruned_by_cleanup(db: Database):
+    old = time.time() - 90 * 86400
+    await db.add_bookmark(content="ancient but mine", ts=old)
+    await db.log_keyword_hit(content="ancient event", ts=old)
+
+    await db.cleanup(days=30)
+
+    assert await db.count("bookmarks") == 1      # user data survives
+    assert await db.count("keyword_hits") == 0   # event data pruned
+
+
+async def test_bookmark_table_exists(db: Database):
+    async with aiosqlite.connect(db.path) as raw:
+        cur = await raw.execute(
+            "SELECT name FROM sqlite_master WHERE type='table' AND name='bookmarks'"
+        )
+        assert await cur.fetchone() is not None

@@ -102,7 +102,7 @@ async def test_cog_registers_editsnipe_with_alias():
     cog = bot.get_cog("Media")
     assert cog is not None
     names = {c.name for c in cog.get_commands()}
-    assert {"editsnipe", "ghost"} <= names
+    assert {"editsnipe", "ghost", "bookmark"} <= names
     assert bot.get_command("es") is not None
     assert bot.get_command("es").name == "editsnipe"
     await bot.close()

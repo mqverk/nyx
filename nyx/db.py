@@ -71,9 +71,33 @@ CREATE TABLE IF NOT EXISTS command_audit (
     error        TEXT
 );
 CREATE INDEX IF NOT EXISTS idx_audit_ts ON command_audit(ts DESC);
+
+CREATE TABLE IF NOT EXISTS bookmarks (
+    id           INTEGER PRIMARY KEY AUTOINCREMENT,
+    ts           REAL    NOT NULL,
+    message_id   INTEGER,
+    guild_id     INTEGER,
+    guild_name   TEXT,
+    channel_id   INTEGER,
+    channel_name TEXT,
+    author_id    INTEGER,
+    author_name  TEXT,
+    content      TEXT,
+    attachments  TEXT,
+    jump_url     TEXT,
+    saved_by     INTEGER,
+    saved_by_name TEXT
+);
+CREATE INDEX IF NOT EXISTS idx_bookmarks_ts ON bookmarks(ts DESC);
 """
 
+# Event tables: pruned by ``cleanup()``.
 TABLES = ("keyword_hits", "snipes", "command_audit")
+
+# User-owned tables: never auto-pruned.
+USER_TABLES = ("bookmarks",)
+
+ALL_TABLES = TABLES + USER_TABLES
 
 
 class Database:
@@ -265,10 +289,65 @@ class Database:
         return rows[0] if rows else None
 
     async def count(self, table: str) -> int:
-        if table not in TABLES:
+        if table not in ALL_TABLES:
             raise ValueError(f"unknown table {table!r}")
         rows = await self._rows(f"SELECT COUNT(*) AS n FROM {table}")
         return int(rows[0]["n"])
+
+    # -- bookmarks ---------------------------------------------------------
+    async def add_bookmark(
+        self,
+        *,
+        content: str = "",
+        message_id: int | None = None,
+        guild_id: int | None = None,
+        guild_name: str | None = None,
+        channel_id: int | None = None,
+        channel_name: str | None = None,
+        author_id: int | None = None,
+        author_name: str | None = None,
+        attachments: Sequence[str] | None = None,
+        jump_url: str | None = None,
+        saved_by: int | None = None,
+        saved_by_name: str | None = None,
+        ts: float | None = None,
+    ) -> int:
+        async with self._lock:
+            cur = await self.conn.execute(
+                """INSERT INTO bookmarks
+                   (ts, message_id, guild_id, guild_name, channel_id, channel_name,
+                    author_id, author_name, content, attachments, jump_url,
+                    saved_by, saved_by_name)
+                   VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)""",
+                (ts or time.time(), message_id, guild_id, guild_name, channel_id,
+                 channel_name, author_id, author_name, content,
+                 json.dumps(list(attachments or [])), jump_url, saved_by,
+                 saved_by_name),
+            )
+            await self.conn.commit()
+            return int(cur.lastrowid or 0)
+
+    async def list_bookmarks(
+        self, query: str | None = None, limit: int = 50, offset: int = 0
+    ) -> list[dict[str, Any]]:
+        limit = max(1, min(int(limit), 500))
+        sql = "SELECT * FROM bookmarks"
+        params: list[Any] = []
+        if query:
+            sql += " WHERE content LIKE ? OR author_name LIKE ? OR channel_name LIKE ?"
+            like = f"%{query}%"
+            params += [like, like, like]
+        sql += " ORDER BY ts DESC LIMIT ? OFFSET ?"
+        params += [limit, max(0, int(offset))]
+        return await self._rows(sql, params)
+
+    async def delete_bookmark(self, bookmark_id: int) -> bool:
+        async with self._lock:
+            cur = await self.conn.execute(
+                "DELETE FROM bookmarks WHERE id = ?", (int(bookmark_id),)
+            )
+            await self.conn.commit()
+            return (cur.rowcount or 0) > 0
 
     # -- maintenance -------------------------------------------------------
     async def cleanup(self, days: int = 30) -> dict[str, int]:

@@ -88,6 +88,10 @@ class Media(commands.Cog, name="Media"):
         self.edits = EditTracker()
         self._ghosts: set[asyncio.Task[None]] = set()
 
+    @property
+    def db(self) -> Any:
+        return getattr(self.bot, "db", None)
+
     # -- listeners ---------------------------------------------------------
     @commands.Cog.listener()
     async def on_message_edit(self, before: discord.Message, after: discord.Message) -> None:
@@ -138,6 +142,41 @@ class Media(commands.Cog, name="Media"):
         task.add_done_callback(self._ghosts.discard)
         with contextlib.suppress(discord.HTTPException):
             await ctx.send(f"👻 self-destructs in {human_duration(seconds)}", delete_after=5)
+
+    @commands.command(name="bookmark")
+    async def bookmark(
+        self, ctx: commands.Context, message: discord.Message | None = None
+    ) -> None:
+        """Save a replied-to message to the bookmarks table."""
+        target = message
+        if target is None:
+            reference = getattr(ctx.message, "reference", None)
+            target = getattr(reference, "resolved", None) if reference else None
+        if not isinstance(target, discord.Message):
+            await ctx.send("reply to a message to bookmark it")
+            return
+
+        database = self.db
+        if database is None:
+            await ctx.send("storage unavailable")
+            return
+
+        attachments = [a.url for a in getattr(target, "attachments", [])]
+        bookmark_id = await database.add_bookmark(
+            content=target.content or "",
+            message_id=getattr(target, "id", None),
+            guild_id=getattr(getattr(target, "guild", None), "id", None),
+            guild_name=getattr(getattr(target, "guild", None), "name", None),
+            channel_id=getattr(getattr(target, "channel", None), "id", None),
+            channel_name=getattr(getattr(target, "channel", None), "name", None),
+            author_id=getattr(getattr(target, "author", None), "id", None),
+            author_name=str(getattr(target, "author", "")),
+            attachments=attachments,
+            jump_url=getattr(target, "jump_url", None),
+            saved_by=getattr(ctx.author, "id", None),
+            saved_by_name=str(ctx.author),
+        )
+        await ctx.send(f"🔖 bookmarked as #{bookmark_id}")
 
 
 async def setup(bot: commands.Bot) -> None:
