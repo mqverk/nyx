@@ -89,13 +89,24 @@ CREATE TABLE IF NOT EXISTS bookmarks (
     saved_by_name TEXT
 );
 CREATE INDEX IF NOT EXISTS idx_bookmarks_ts ON bookmarks(ts DESC);
+
+CREATE TABLE IF NOT EXISTS last_seen (
+    user_id      INTEGER PRIMARY KEY,
+    ts           REAL    NOT NULL,
+    username     TEXT,
+    guild_id     INTEGER,
+    guild_name   TEXT,
+    channel_id   INTEGER,
+    channel_name TEXT
+);
+CREATE INDEX IF NOT EXISTS idx_last_seen_ts ON last_seen(ts DESC);
 """
 
 # Event tables: pruned by ``cleanup()``.
 TABLES = ("keyword_hits", "snipes", "command_audit")
 
 # User-owned tables: never auto-pruned.
-USER_TABLES = ("bookmarks",)
+USER_TABLES = ("bookmarks", "last_seen")
 
 ALL_TABLES = TABLES + USER_TABLES
 
@@ -348,6 +359,42 @@ class Database:
             )
             await self.conn.commit()
             return (cur.rowcount or 0) > 0
+
+    # -- last seen ---------------------------------------------------------
+    async def record_seen(
+        self,
+        user_id: int,
+        *,
+        username: str | None = None,
+        guild_id: int | None = None,
+        guild_name: str | None = None,
+        channel_id: int | None = None,
+        channel_name: str | None = None,
+        ts: float | None = None,
+    ) -> None:
+        """Upsert the most recent activity for a user."""
+        async with self._lock:
+            await self.conn.execute(
+                """INSERT INTO last_seen
+                   (user_id, ts, username, guild_id, guild_name, channel_id, channel_name)
+                   VALUES (?,?,?,?,?,?,?)
+                   ON CONFLICT(user_id) DO UPDATE SET
+                     ts=excluded.ts,
+                     username=COALESCE(excluded.username, last_seen.username),
+                     guild_id=COALESCE(excluded.guild_id, last_seen.guild_id),
+                     guild_name=COALESCE(excluded.guild_name, last_seen.guild_name),
+                     channel_id=COALESCE(excluded.channel_id, last_seen.channel_id),
+                     channel_name=COALESCE(excluded.channel_name, last_seen.channel_name)""",
+                (int(user_id), ts or time.time(), username, guild_id, guild_name,
+                 channel_id, channel_name),
+            )
+            await self.conn.commit()
+
+    async def get_last_seen(self, user_id: int) -> dict[str, Any] | None:
+        rows = await self._rows(
+            "SELECT * FROM last_seen WHERE user_id = ?", (int(user_id),)
+        )
+        return rows[0] if rows else None
 
     # -- maintenance -------------------------------------------------------
     async def cleanup(self, days: int = 30) -> dict[str, int]:
