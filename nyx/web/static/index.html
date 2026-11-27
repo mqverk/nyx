@@ -1,0 +1,548 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>nyx — control</title>
+<style>
+  :root {
+    --bg: #0a0b0f;
+    --panel: #12141c;
+    --panel-2: #171a24;
+    --line: #232838;
+    --text: #e6e9f2;
+    --muted: #7d879e;
+    --accent: #7c5cff;
+    --accent-2: #00e0b8;
+    --danger: #ff4d6d;
+    --warn: #ffb020;
+    --ok: #2ee6a8;
+    --mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace;
+  }
+  * { box-sizing: border-box; }
+  html, body { height: 100%; }
+  body {
+    margin: 0; background: radial-gradient(1200px 600px at 15% -10%, #1a1440 0%, transparent 60%),
+                radial-gradient(900px 500px at 100% 0%, #062a2a 0%, transparent 55%), var(--bg);
+    color: var(--text);
+    font: 14px/1.5 -apple-system, BlinkMacSystemFont, "Segoe UI", Inter, Roboto, sans-serif;
+    -webkit-font-smoothing: antialiased;
+  }
+  a { color: var(--accent-2); text-decoration: none; }
+  .wrap { max-width: 1280px; margin: 0 auto; padding: 22px 20px 60px; }
+
+  header { display: flex; align-items: center; gap: 14px; margin-bottom: 22px; }
+  .logo {
+    font-size: 26px; font-weight: 700; letter-spacing: -0.5px;
+    background: linear-gradient(92deg, #fff 10%, var(--accent) 55%, var(--accent-2) 100%);
+    -webkit-background-clip: text; background-clip: text; color: transparent;
+  }
+  .logo small { font-size: 11px; letter-spacing: 2px; color: var(--muted); -webkit-text-fill-color: var(--muted); margin-left: 8px; }
+  .spacer { flex: 1; }
+  .pill {
+    display: inline-flex; align-items: center; gap: 7px; padding: 6px 12px;
+    border: 1px solid var(--line); border-radius: 999px; background: var(--panel);
+    font-size: 12px; color: var(--muted);
+  }
+  .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--muted); }
+  .dot.on { background: var(--ok); box-shadow: 0 0 10px var(--ok); }
+  .dot.warn { background: var(--warn); box-shadow: 0 0 10px var(--warn); }
+  .dot.err { background: var(--danger); box-shadow: 0 0 10px var(--danger); }
+
+  .grid { display: grid; gap: 16px; }
+  .cards { grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); }
+  .cols { grid-template-columns: 1.25fr 1fr; align-items: start; }
+  @media (max-width: 940px) { .cols { grid-template-columns: 1fr; } }
+
+  .card {
+    background: linear-gradient(180deg, var(--panel-2), var(--panel));
+    border: 1px solid var(--line); border-radius: 14px; padding: 16px;
+  }
+  .card h2 {
+    margin: 0 0 12px; font-size: 11px; letter-spacing: 1.6px; text-transform: uppercase;
+    color: var(--muted); font-weight: 600;
+  }
+  .stat .label { font-size: 11px; letter-spacing: 1.2px; text-transform: uppercase; color: var(--muted); }
+  .stat .value { font-size: 24px; font-weight: 650; margin-top: 6px; font-variant-numeric: tabular-nums; }
+  .stat .value.small { font-size: 16px; }
+
+  button {
+    font: inherit; cursor: pointer; border-radius: 9px; border: 1px solid var(--line);
+    background: var(--panel-2); color: var(--text); padding: 9px 14px; transition: .15s;
+  }
+  button:hover { border-color: #3a4258; background: #1d2130; }
+  button.primary { background: linear-gradient(180deg, #8a6dff, #6b4bf0); border-color: #6b4bf0; color: #fff; font-weight: 600; }
+  button.primary:hover { filter: brightness(1.08); }
+  button.danger { border-color: #4a2030; color: #ff8fa3; }
+  button.danger:hover { background: #2a1420; }
+  button.ghost { background: transparent; }
+  button:disabled { opacity: .45; cursor: not-allowed; }
+  .row { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; }
+
+  input, select, textarea {
+    font: inherit; color: var(--text); background: #0d0f16; border: 1px solid var(--line);
+    border-radius: 9px; padding: 9px 11px; width: 100%; outline: none;
+  }
+  input:focus, select:focus, textarea:focus { border-color: var(--accent); box-shadow: 0 0 0 3px rgba(124,92,255,.15); }
+  label.field { display: block; margin-bottom: 10px; }
+  label.field span { display: block; font-size: 11px; letter-spacing: 1px; text-transform: uppercase; color: var(--muted); margin-bottom: 5px; }
+  .inline { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+
+  #console {
+    font-family: var(--mono); font-size: 12px; line-height: 1.6; height: 300px; overflow-y: auto;
+    background: #07080c; border: 1px solid var(--line); border-radius: 10px; padding: 12px;
+  }
+  .ln { white-space: pre-wrap; word-break: break-word; }
+  .ln .t { color: #4b5468; }
+  .ln.info .m { color: #b9c2d6; }
+  .ln.warning .m { color: var(--warn); }
+  .ln.error .m { color: var(--danger); }
+  .ln .src { color: #5b6480; }
+
+  .cog { display: flex; align-items: center; justify-content: space-between; padding: 10px 0; border-bottom: 1px solid var(--line); }
+  .cog:last-child { border-bottom: 0; }
+  .cog .name { font-family: var(--mono); }
+  .switch { position: relative; width: 42px; height: 24px; flex: none; }
+  .switch input { position: absolute; opacity: 0; width: 100%; height: 100%; margin: 0; cursor: pointer; }
+  .switch .track { position: absolute; inset: 0; background: #2a3042; border-radius: 999px; transition: .18s; }
+  .switch .thumb { position: absolute; top: 3px; left: 3px; width: 18px; height: 18px; background: #8b93a8; border-radius: 50%; transition: .18s; }
+  .switch input:checked + .track { background: rgba(124,92,255,.35); }
+  .switch input:checked + .track + .thumb { left: 21px; background: var(--accent); }
+
+  table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  th, td { text-align: left; padding: 9px 10px; border-bottom: 1px solid var(--line); vertical-align: top; }
+  th { font-size: 10px; letter-spacing: 1.2px; text-transform: uppercase; color: var(--muted); font-weight: 600; }
+  td.mono { font-family: var(--mono); font-size: 12px; color: #c3cbdd; }
+  .tag { font-size: 10px; padding: 2px 7px; border-radius: 999px; border: 1px solid var(--line); color: var(--muted); }
+  .tag.kw { color: var(--accent-2); border-color: #12463c; }
+  .tag.sn { color: #ff9ec0; border-color: #4a2030; }
+
+  #login {
+    position: fixed; inset: 0; display: none; place-items: center; z-index: 50;
+    background: rgba(6,7,11,.86); backdrop-filter: blur(8px);
+  }
+  #login.show { display: grid; }
+  #login .box { width: min(380px, 92vw); }
+  #login .pin { font-family: var(--mono); font-size: 22px; letter-spacing: 8px; text-align: center; }
+  .err { color: var(--danger); font-size: 12px; min-height: 16px; margin-top: 8px; }
+  .hint { color: var(--muted); font-size: 12px; }
+  .toast {
+    position: fixed; right: 18px; bottom: 18px; background: var(--panel-2); border: 1px solid var(--line);
+    border-left: 3px solid var(--accent); padding: 11px 15px; border-radius: 9px; font-size: 13px;
+    opacity: 0; transform: translateY(8px); transition: .2s; pointer-events: none; max-width: 340px;
+  }
+  .toast.show { opacity: 1; transform: none; }
+  .toast.bad { border-left-color: var(--danger); }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <div class="logo">nyx<small>CONTROL</small></div>
+    <div class="spacer"></div>
+    <div class="pill"><span class="dot" id="wsdot"></span><span id="wstext">offline</span></div>
+    <div class="pill"><span class="dot" id="botdot"></span><span id="bottext">stopped</span></div>
+    <button class="ghost" id="logout">lock</button>
+  </header>
+
+  <div class="grid cards" style="margin-bottom:16px">
+    <div class="card stat"><div class="label">status</div><div class="value small" id="s-status">—</div></div>
+    <div class="card stat"><div class="label">ping</div><div class="value" id="s-ping">—</div></div>
+    <div class="card stat"><div class="label">uptime</div><div class="value" id="s-uptime">—</div></div>
+    <div class="card stat"><div class="label">servers</div><div class="value" id="s-guilds">—</div></div>
+    <div class="card stat"><div class="label">account</div><div class="value small" id="s-user">—</div></div>
+  </div>
+
+  <div class="card" style="margin-bottom:16px">
+    <div class="row">
+      <button class="primary" id="btn-start">start</button>
+      <button id="btn-stop">stop</button>
+      <button id="btn-restart">restart</button>
+      <div class="spacer"></div>
+      <span class="hint" id="token-hint">token: —</span>
+    </div>
+  </div>
+
+  <div class="grid cols">
+    <div class="grid">
+      <div class="card">
+        <h2>live console</h2>
+        <div id="console"></div>
+      </div>
+      <div class="card">
+        <h2>cogs</h2>
+        <div id="cogs"></div>
+      </div>
+      <div class="card">
+        <h2>sniped &amp; keyword alerts</h2>
+        <div class="row" style="margin-bottom:10px">
+          <input id="evq" placeholder="search content, author, channel…" style="flex:1" />
+          <button id="evgo">search</button>
+        </div>
+        <div style="overflow:auto; max-height:340px">
+          <table>
+            <thead><tr><th>when</th><th>type</th><th>author</th><th>channel</th><th>content</th></tr></thead>
+            <tbody id="events"><tr><td colspan="5" class="hint">no events yet</td></tr></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <div class="grid">
+      <div class="card">
+        <h2>discord token</h2>
+        <label class="field"><span>token (write-only)</span>
+          <input id="token" type="password" placeholder="paste token to update…" autocomplete="off" />
+        </label>
+        <div class="row">
+          <button class="primary" id="token-save">save token</button>
+          <span class="hint" id="token-state">not configured</span>
+        </div>
+      </div>
+
+      <div class="card">
+        <h2>presence</h2>
+        <div class="inline">
+          <label class="field"><span>status</span>
+            <select id="p-status">
+              <option value="online">online</option>
+              <option value="idle">idle</option>
+              <option value="dnd">dnd</option>
+              <option value="invisible">invisible</option>
+            </select>
+          </label>
+          <label class="field"><span>emoji</span><input id="p-emoji" placeholder="🌙" /></label>
+        </div>
+        <label class="field"><span>activity text</span><input id="p-text" placeholder="listening to the void" /></label>
+        <button class="primary" id="p-save">apply presence</button>
+      </div>
+
+      <div class="card">
+        <h2>afk auto-reply</h2>
+        <div class="row" style="margin-bottom:10px">
+          <label class="switch"><input type="checkbox" id="afk-on" /><span class="track"></span><span class="thumb"></span></label>
+          <span class="hint">60s per-user/channel cooldown</span>
+        </div>
+        <label class="field"><span>message</span><input id="afk-msg" placeholder="away right now…" /></label>
+        <button class="primary" id="afk-save">save afk</button>
+      </div>
+
+      <div class="card">
+        <h2>keywords</h2>
+        <label class="field"><span>comma separated</span><input id="kw" placeholder="deploy, outage, invoice" /></label>
+        <button class="primary" id="kw-save">save keywords</button>
+      </div>
+
+      <div class="card">
+        <h2>snippets</h2>
+        <label class="field"><span>one per line — key = value</span>
+          <textarea id="snip" rows="4" placeholder="brb = be right back&#10;ty = thank you"></textarea>
+        </label>
+        <button class="primary" id="snip-save">save snippets</button>
+      </div>
+
+      <div class="card">
+        <h2>command prefix</h2>
+        <div class="row">
+          <input id="prefix" style="width:90px" maxlength="5" />
+          <button class="primary" id="prefix-save">save</button>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div id="login">
+  <div class="card box">
+    <h2>unlock nyx</h2>
+    <label class="field"><span>6-digit pin</span>
+      <input id="pin" class="pin" inputmode="numeric" maxlength="6" autocomplete="off" placeholder="••••••" />
+    </label>
+    <button class="primary" id="pin-go" style="width:100%">unlock</button>
+    <div class="err" id="pin-err"></div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+(() => {
+  "use strict";
+  const $ = (id) => document.getElementById(id);
+  let ws = null, wsRetry = null, cfg = null;
+
+  function toast(msg, bad) {
+    const el = $("toast");
+    el.textContent = msg;
+    el.className = "toast show" + (bad ? " bad" : "");
+    clearTimeout(el._t);
+    el._t = setTimeout(() => (el.className = "toast"), 2600);
+  }
+
+  async function api(path, opts = {}) {
+    const res = await fetch(path, {
+      credentials: "same-origin",
+      headers: { "Content-Type": "application/json" },
+      ...opts,
+    });
+    if (res.status === 401) { showLogin(); throw new Error("unauthorized"); }
+    if (!res.ok) {
+      let detail = res.statusText;
+      try { detail = (await res.json()).detail || detail; } catch (_) {}
+      throw new Error(detail);
+    }
+    return res.status === 204 ? null : res.json();
+  }
+
+  function showLogin() {
+    $("login").classList.add("show");
+    setTimeout(() => $("pin").focus(), 60);
+  }
+  function hideLogin() { $("login").classList.remove("show"); }
+
+  // ---- auth -------------------------------------------------------------
+  $("pin-go").addEventListener("click", doLogin);
+  $("pin").addEventListener("keydown", (e) => { if (e.key === "Enter") doLogin(); });
+
+  async function doLogin() {
+    const pin = $("pin").value.trim();
+    $("pin-err").textContent = "";
+    try {
+      const res = await fetch("/api/login", {
+        method: "POST", credentials: "same-origin",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ pin }),
+      });
+      if (!res.ok) { $("pin-err").textContent = "wrong pin"; return; }
+      $("pin").value = "";
+      hideLogin();
+      await boot();
+    } catch (e) { $("pin-err").textContent = "login failed"; }
+  }
+
+  $("logout").addEventListener("click", async () => {
+    try { await api("/api/logout", { method: "POST" }); } catch (_) {}
+    if (ws) { ws.close(); ws = null; }
+    showLogin();
+  });
+
+  // ---- status -----------------------------------------------------------
+  function fmtUptime(s) {
+    if (!s) return "—";
+    const h = Math.floor(s / 3600), m = Math.floor((s % 3600) / 60), sec = Math.floor(s % 60);
+    return h ? `${h}h ${m}m` : m ? `${m}m ${sec}s` : `${sec}s`;
+  }
+
+  function paintStatus(st) {
+    $("s-status").textContent = st.status;
+    $("s-ping").textContent = st.latency_ms ? st.latency_ms + "ms" : "—";
+    $("s-uptime").textContent = fmtUptime(st.uptime_s);
+    $("s-guilds").textContent = st.guilds ?? "—";
+    $("s-user").textContent = st.user || "—";
+    $("bottext").textContent = st.status;
+    const d = $("botdot");
+    d.className = "dot " + (st.status === "running" ? "on" : st.status === "standby" ? "warn" : st.status === "error" ? "err" : "");
+    $("token-hint").textContent = "token: " + (st.token_configured ? "configured" : "not set");
+  }
+
+  async function refreshStatus() {
+    try { paintStatus(await api("/api/status")); } catch (_) {}
+  }
+
+  // ---- console ----------------------------------------------------------
+  function addLog(ev) {
+    const box = $("console");
+    const atBottom = box.scrollTop + box.clientHeight >= box.scrollHeight - 40;
+    const line = document.createElement("div");
+    line.className = "ln " + (ev.level || "info");
+    const t = new Date((ev.ts || Date.now() / 1000) * 1000).toLocaleTimeString();
+    line.innerHTML = `<span class="t">${t}</span> <span class="m"></span> <span class="src">${ev.source || ""}</span>`;
+    line.querySelector(".m").textContent = ev.message || "";
+    box.appendChild(line);
+    while (box.childElementCount > 400) box.removeChild(box.firstChild);
+    if (atBottom) box.scrollTop = box.scrollHeight;
+  }
+
+  function connectWS() {
+    if (ws) { try { ws.close(); } catch (_) {} }
+    const proto = location.protocol === "https:" ? "wss" : "ws";
+    ws = new WebSocket(`${proto}://${location.host}/ws/logs`);
+    ws.onopen = () => { $("wsdot").className = "dot on"; $("wstext").textContent = "live"; };
+    ws.onclose = () => {
+      $("wsdot").className = "dot err"; $("wstext").textContent = "offline";
+      clearTimeout(wsRetry);
+      wsRetry = setTimeout(connectWS, 2500);
+    };
+    ws.onmessage = (m) => { try { addLog(JSON.parse(m.data)); } catch (_) {} };
+  }
+
+  // ---- cogs -------------------------------------------------------------
+  async function loadCogs() {
+    const cogs = await api("/api/cogs");
+    const box = $("cogs");
+    box.innerHTML = "";
+    cogs.forEach((c) => {
+      const row = document.createElement("div");
+      row.className = "cog";
+      row.innerHTML = `<div><div class="name">${c.name}</div>
+        <div class="hint">${c.loaded ? "loaded" : "not loaded"}</div></div>
+        <div class="row">
+          <button class="ghost" data-reload="${c.name}">reload</button>
+          <label class="switch"><input type="checkbox" data-toggle="${c.name}" ${c.enabled ? "checked" : ""} />
+            <span class="track"></span><span class="thumb"></span></label>
+        </div>`;
+      box.appendChild(row);
+    });
+    box.querySelectorAll("[data-toggle]").forEach((el) => {
+      el.addEventListener("change", async () => {
+        try {
+          await api(`/api/cogs/${el.dataset.toggle}/toggle`, {
+            method: "POST", body: JSON.stringify({ enabled: el.checked }),
+          });
+          toast(`${el.dataset.toggle} ${el.checked ? "enabled" : "disabled"}`);
+          loadCogs();
+        } catch (e) { toast(e.message, true); el.checked = !el.checked; }
+      });
+    });
+    box.querySelectorAll("[data-reload]").forEach((el) => {
+      el.addEventListener("click", async () => {
+        try { await api(`/api/cogs/${el.dataset.reload}/reload`, { method: "POST" }); toast("reloaded"); }
+        catch (e) { toast(e.message, true); }
+      });
+    });
+  }
+
+  // ---- config editors ---------------------------------------------------
+  function paintConfig(c) {
+    cfg = c;
+    $("p-status").value = c.presence.status;
+    $("p-emoji").value = c.presence.emoji || "";
+    $("p-text").value = c.presence.text || "";
+    $("afk-on").checked = !!c.afk.enabled;
+    $("afk-msg").value = c.afk.message || "";
+    $("kw").value = (c.keywords || []).join(", ");
+    $("snip").value = Object.entries(c.snippets || {}).map(([k, v]) => `${k} = ${v}`).join("\n");
+    $("prefix").value = c.prefix;
+  }
+
+  async function savePatch(patch, okMsg) {
+    try {
+      const updated = await api("/api/config", { method: "PUT", body: JSON.stringify({ patch }) });
+      paintConfig(updated);
+      toast(okMsg || "saved");
+    } catch (e) { toast(e.message, true); }
+  }
+
+  $("p-save").addEventListener("click", () => savePatch({
+    presence: { status: $("p-status").value, text: $("p-text").value, emoji: $("p-emoji").value },
+  }, "presence applied"));
+
+  $("afk-save").addEventListener("click", () => savePatch({
+    afk: { enabled: $("afk-on").checked, message: $("afk-msg").value },
+  }, "afk saved"));
+
+  $("kw-save").addEventListener("click", () => savePatch({
+    keywords: $("kw").value.split(",").map((s) => s.trim()).filter(Boolean),
+  }, "keywords saved"));
+
+  $("snip-save").addEventListener("click", () => {
+    const snippets = {};
+    $("snip").value.split("\n").forEach((line) => {
+      const i = line.indexOf("=");
+      if (i > 0) snippets[line.slice(0, i).trim().toLowerCase()] = line.slice(i + 1).trim();
+    });
+    savePatch({ snippets }, "snippets saved");
+  });
+
+  $("prefix-save").addEventListener("click", () => savePatch({ prefix: $("prefix").value }, "prefix saved"));
+
+  // ---- token ------------------------------------------------------------
+  async function loadToken() {
+    const t = await api("/api/token");
+    $("token-state").textContent = t.configured ? `configured · ${t.masked}` : "not configured";
+  }
+
+  $("token-save").addEventListener("click", async () => {
+    const value = $("token").value.trim();
+    if (!value) { toast("paste a token first", true); return; }
+    try {
+      const t = await api("/api/token", { method: "PUT", body: JSON.stringify({ token: value }) });
+      $("token").value = "";
+      $("token-state").textContent = `configured · ${t.masked}`;
+      toast("token saved");
+      refreshStatus();
+    } catch (e) { toast(e.message, true); }
+  });
+
+  // ---- controls ---------------------------------------------------------
+  async function control(action) {
+    try {
+      const st = await api(`/api/bot/${action}`, { method: "POST" });
+      paintStatus({ ...st, token_configured: st.token_configured ?? true });
+      toast(`bot ${action}`);
+      refreshStatus(); loadCogs();
+    } catch (e) { toast(e.message, true); }
+  }
+  $("btn-start").addEventListener("click", () => control("start"));
+  $("btn-stop").addEventListener("click", () => control("stop"));
+  $("btn-restart").addEventListener("click", () => control("restart"));
+
+  // ---- events -----------------------------------------------------------
+  function fmtTime(ts) {
+    return new Date(ts * 1000).toLocaleString([], { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" });
+  }
+
+  async function loadEvents() {
+    const q = $("evq").value.trim();
+    const data = await api(`/api/events?limit=50${q ? "&q=" + encodeURIComponent(q) : ""}`);
+    const rows = [
+      ...(data.keyword_hits || []).map((r) => ({ ...r, _type: r.kind === "mention" ? "mention" : "keyword" })),
+      ...(data.snipes || []).map((r) => ({ ...r, _type: "snipe" })),
+    ].sort((a, b) => b.ts - a.ts);
+
+    const body = $("events");
+    if (!rows.length) {
+      body.innerHTML = '<tr><td colspan="5" class="hint">no events yet</td></tr>';
+      return;
+    }
+    body.innerHTML = rows.map((r) => {
+      const cls = r._type === "snipe" ? "sn" : "kw";
+      const content = (r.content || "").replace(/[<>&]/g, (c) => ({ "<": "&lt;", ">": "&gt;", "&": "&amp;" }[c]));
+      return `<tr>
+        <td class="mono">${fmtTime(r.ts)}</td>
+        <td><span class="tag ${cls}">${r._type}</span></td>
+        <td class="mono">${r.author_name || "—"}</td>
+        <td class="mono">${r.channel_name || r.channel_id || "—"}</td>
+        <td class="mono">${content || "<em>[no text]</em>"}</td>
+      </tr>`;
+    }).join("");
+  }
+  $("evgo").addEventListener("click", loadEvents);
+  $("evq").addEventListener("keydown", (e) => { if (e.key === "Enter") loadEvents(); });
+
+  // ---- boot -------------------------------------------------------------
+  async function boot() {
+    try {
+      const st = await api("/api/status");
+      paintStatus(st);
+      paintConfig(await api("/api/config"));
+      await loadToken();
+      await loadCogs();
+      await loadEvents();
+      connectWS();
+      hideLogin();
+    } catch (e) {
+      if (e.message !== "unauthorized") toast(e.message, true);
+    }
+  }
+
+  setInterval(() => { if (!$("login").classList.contains("show")) refreshStatus(); }, 4000);
+
+  // probe session on load
+  fetch("/api/session", { credentials: "same-origin" })
+    .then((r) => (r.ok ? boot() : showLogin()))
+    .catch(() => showLogin());
+})();
+</script>
+</body>
+</html>
