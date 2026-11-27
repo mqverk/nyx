@@ -52,6 +52,21 @@ crashing — the dashboard is fully usable before you have a token.
 
 ---
 
+## Dashboard
+
+The control panel is a single-page vanilla-JS app with no build step.
+
+- **Two themes** — *midnight* (near-black `#04050a`) and *light* (pure white). The toggle
+  in the header switches between them with a circular reveal, and the choice persists in
+  `localStorage`. First visit follows your OS `prefers-color-scheme`.
+- **Motion** — staggered card entrance, spring-eased toggles, ripple feedback on buttons,
+  tweened status numbers, animated console lines, and a spring toast. Everything respects
+  `prefers-reduced-motion`.
+- **Live** — status polls every 4s while the console streams over `/ws/logs`; the socket
+  reconnects automatically.
+
+---
+
 ## Install
 
 ```bash

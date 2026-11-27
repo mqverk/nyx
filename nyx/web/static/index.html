@@ -1,138 +1,317 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" data-theme="dark">
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
 <title>nyx — control</title>
+<script>
+  // resolve theme before first paint so there is no flash
+  (function () {
+    try {
+      var saved = localStorage.getItem("nyx-theme");
+      var sys = window.matchMedia("(prefers-color-scheme: light)").matches ? "light" : "dark";
+      document.documentElement.dataset.theme = saved || sys;
+    } catch (e) { document.documentElement.dataset.theme = "dark"; }
+  })();
+</script>
 <style>
-  :root {
-    --bg: #0a0b0f;
-    --panel: #12141c;
-    --panel-2: #171a24;
-    --line: #232838;
-    --text: #e6e9f2;
-    --muted: #7d879e;
+  /* ===================== theme tokens ===================== */
+  :root, [data-theme="dark"] {
+    --bg: #04050a;
+    --glow-1: rgba(124, 92, 255, .13);
+    --glow-2: rgba(0, 224, 184, .07);
+    --panel: #0a0c12;
+    --panel-2: #0e1119;
+    --panel-hi: #12161f;
+    --line: #1b2130;
+    --line-hi: #2a3244;
+    --text: #e8ecf6;
+    --muted: #7b859c;
     --accent: #7c5cff;
+    --accent-soft: rgba(124, 92, 255, .16);
     --accent-2: #00e0b8;
     --danger: #ff4d6d;
     --warn: #ffb020;
     --ok: #2ee6a8;
-    --mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace;
+    --console-bg: #03040a;
+    --input-bg: #0b0e15;
+    --shadow: 0 14px 40px rgba(0, 0, 0, .55);
+    --shadow-sm: 0 6px 18px rgba(0, 0, 0, .35);
+    --track: #232a3a;
+    --thumb: #8b93a8;
+    --skeleton: linear-gradient(90deg, #0e1119 25%, #161b26 37%, #0e1119 63%);
   }
+  [data-theme="light"] {
+    --bg: #ffffff;
+    --glow-1: rgba(124, 92, 255, .07);
+    --glow-2: rgba(0, 190, 160, .05);
+    --panel: #ffffff;
+    --panel-2: #fbfcfe;
+    --panel-hi: #f4f6fa;
+    --line: #e6e9f0;
+    --line-hi: #d3d9e6;
+    --text: #0b0d12;
+    --muted: #6b7488;
+    --accent: #6b4bf0;
+    --accent-soft: rgba(107, 75, 240, .10);
+    --accent-2: #009e86;
+    --danger: #d92d4b;
+    --warn: #b26a00;
+    --ok: #0f9d6e;
+    --console-bg: #f7f8fb;
+    --input-bg: #ffffff;
+    --shadow: 0 14px 40px rgba(16, 24, 40, .10);
+    --shadow-sm: 0 4px 14px rgba(16, 24, 40, .07);
+    --track: #dfe4ee;
+    --thumb: #a8b0c2;
+    --skeleton: linear-gradient(90deg, #f2f4f8 25%, #e9edf4 37%, #f2f4f8 63%);
+  }
+
   * { box-sizing: border-box; }
+  html { scroll-behavior: smooth; }
   html, body { height: 100%; }
   body {
-    margin: 0; background: radial-gradient(1200px 600px at 15% -10%, #1a1440 0%, transparent 60%),
-                radial-gradient(900px 500px at 100% 0%, #062a2a 0%, transparent 55%), var(--bg);
+    margin: 0;
+    background:
+      radial-gradient(1200px 620px at 12% -12%, var(--glow-1) 0%, transparent 62%),
+      radial-gradient(900px 520px at 102% -4%, var(--glow-2) 0%, transparent 58%),
+      var(--bg);
     color: var(--text);
-    font: 14px/1.5 -apple-system, BlinkMacSystemFont, "Segoe UI", Inter, Roboto, sans-serif;
+    font: 14px/1.55 -apple-system, BlinkMacSystemFont, "Segoe UI", Inter, Roboto, sans-serif;
     -webkit-font-smoothing: antialiased;
+    transition: background-color .5s ease, color .5s ease;
+    overflow-x: hidden;
   }
   a { color: var(--accent-2); text-decoration: none; }
-  .wrap { max-width: 1280px; margin: 0 auto; padding: 22px 20px 60px; }
+  .wrap { max-width: 1280px; margin: 0 auto; padding: 22px 20px 70px; }
 
-  header { display: flex; align-items: center; gap: 14px; margin-bottom: 22px; }
+  /* ===================== motion primitives ===================== */
+  @keyframes rise { from { opacity: 0; transform: translateY(14px) scale(.985); } to { opacity: 1; transform: none; } }
+  @keyframes lineIn { from { opacity: 0; transform: translateX(-6px); } to { opacity: 1; transform: none; } }
+  @keyframes pulse { 0%, 100% { box-shadow: 0 0 0 0 rgba(46, 230, 168, .45); } 50% { box-shadow: 0 0 0 7px rgba(46, 230, 168, 0); } }
+  @keyframes shimmer { 0% { background-position: 100% 0; } 100% { background-position: -100% 0; } }
+  @keyframes bump { 0% { transform: scale(1); } 40% { transform: scale(1.06); } 100% { transform: scale(1); } }
+  @keyframes rippleOut { to { transform: scale(2.6); opacity: 0; } }
+
+  .card {
+    background: linear-gradient(180deg, var(--panel-2), var(--panel));
+    border: 1px solid var(--line);
+    border-radius: 16px;
+    padding: 16px;
+    box-shadow: var(--shadow-sm);
+    transition: transform .38s cubic-bezier(.22, 1, .36, 1),
+                border-color .3s ease, box-shadow .38s ease,
+                background-color .5s ease;
+    animation: rise .55s cubic-bezier(.22, 1, .36, 1) backwards;
+    animation-delay: calc(var(--i, 0) * 45ms);
+    will-change: transform;
+  }
+  .card:hover { transform: translateY(-3px); border-color: var(--line-hi); box-shadow: var(--shadow); }
+
+  /* ===================== header ===================== */
+  header {
+    display: flex; align-items: center; gap: 12px; margin-bottom: 22px;
+    position: sticky; top: 0; z-index: 20; padding: 10px 0;
+    backdrop-filter: blur(14px); -webkit-backdrop-filter: blur(14px);
+  }
   .logo {
-    font-size: 26px; font-weight: 700; letter-spacing: -0.5px;
-    background: linear-gradient(92deg, #fff 10%, var(--accent) 55%, var(--accent-2) 100%);
+    font-size: 26px; font-weight: 700; letter-spacing: -.5px;
+    background: linear-gradient(92deg, var(--text) 8%, var(--accent) 55%, var(--accent-2) 100%);
     -webkit-background-clip: text; background-clip: text; color: transparent;
   }
-  .logo small { font-size: 11px; letter-spacing: 2px; color: var(--muted); -webkit-text-fill-color: var(--muted); margin-left: 8px; }
+  .logo small {
+    font-size: 11px; letter-spacing: 2px; color: var(--muted);
+    -webkit-text-fill-color: var(--muted); margin-left: 8px;
+  }
   .spacer { flex: 1; }
   .pill {
     display: inline-flex; align-items: center; gap: 7px; padding: 6px 12px;
     border: 1px solid var(--line); border-radius: 999px; background: var(--panel);
     font-size: 12px; color: var(--muted);
+    transition: border-color .3s, background-color .5s, color .5s;
   }
-  .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--muted); }
-  .dot.on { background: var(--ok); box-shadow: 0 0 10px var(--ok); }
+  .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--muted); transition: background-color .3s, box-shadow .3s; }
+  .dot.on { background: var(--ok); animation: pulse 2.4s ease-out infinite; }
   .dot.warn { background: var(--warn); box-shadow: 0 0 10px var(--warn); }
   .dot.err { background: var(--danger); box-shadow: 0 0 10px var(--danger); }
 
+  .theme-btn {
+    position: relative; width: 40px; height: 40px; padding: 0; border-radius: 12px;
+    display: grid; place-items: center; overflow: hidden;
+  }
+  .theme-btn svg { position: absolute; width: 18px; height: 18px; transition: transform .5s cubic-bezier(.34, 1.56, .64, 1), opacity .35s ease; }
+  .theme-btn .sun { opacity: 0; transform: rotate(-90deg) scale(.4); }
+  .theme-btn .moon { opacity: 1; transform: rotate(0) scale(1); }
+  [data-theme="light"] .theme-btn .sun { opacity: 1; transform: rotate(0) scale(1); }
+  [data-theme="light"] .theme-btn .moon { opacity: 0; transform: rotate(90deg) scale(.4); }
+
+  /* ===================== layout ===================== */
   .grid { display: grid; gap: 16px; }
   .cards { grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); }
   .cols { grid-template-columns: 1.25fr 1fr; align-items: start; }
   @media (max-width: 940px) { .cols { grid-template-columns: 1fr; } }
 
-  .card {
-    background: linear-gradient(180deg, var(--panel-2), var(--panel));
-    border: 1px solid var(--line); border-radius: 14px; padding: 16px;
-  }
   .card h2 {
     margin: 0 0 12px; font-size: 11px; letter-spacing: 1.6px; text-transform: uppercase;
-    color: var(--muted); font-weight: 600;
+    color: var(--muted); font-weight: 600; transition: color .5s;
   }
   .stat .label { font-size: 11px; letter-spacing: 1.2px; text-transform: uppercase; color: var(--muted); }
-  .stat .value { font-size: 24px; font-weight: 650; margin-top: 6px; font-variant-numeric: tabular-nums; }
-  .stat .value.small { font-size: 16px; }
-
-  button {
-    font: inherit; cursor: pointer; border-radius: 9px; border: 1px solid var(--line);
-    background: var(--panel-2); color: var(--text); padding: 9px 14px; transition: .15s;
+  .stat .value {
+    font-size: 24px; font-weight: 650; margin-top: 6px;
+    font-variant-numeric: tabular-nums; transition: color .5s;
   }
-  button:hover { border-color: #3a4258; background: #1d2130; }
-  button.primary { background: linear-gradient(180deg, #8a6dff, #6b4bf0); border-color: #6b4bf0; color: #fff; font-weight: 600; }
-  button.primary:hover { filter: brightness(1.08); }
-  button.danger { border-color: #4a2030; color: #ff8fa3; }
-  button.danger:hover { background: #2a1420; }
+  .stat .value.small { font-size: 16px; }
+  .stat .value.bump { animation: bump .4s cubic-bezier(.34, 1.56, .64, 1); }
+
+  /* ===================== controls ===================== */
+  button {
+    position: relative; overflow: hidden;
+    font: inherit; cursor: pointer; border-radius: 10px; border: 1px solid var(--line);
+    background: var(--panel-2); color: var(--text); padding: 9px 15px;
+    transition: transform .18s cubic-bezier(.22, 1, .36, 1), background-color .25s,
+                border-color .25s, box-shadow .25s, color .5s;
+  }
+  button:hover { border-color: var(--line-hi); background: var(--panel-hi); transform: translateY(-1px); }
+  button:active { transform: scale(.97); }
+  button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+  button.primary {
+    background: linear-gradient(180deg, #8a6dff, #6b4bf0);
+    border-color: #6b4bf0; color: #fff; font-weight: 600;
+    box-shadow: 0 4px 14px rgba(107, 75, 240, .28);
+  }
+  button.primary:hover { box-shadow: 0 8px 24px rgba(107, 75, 240, .42); filter: brightness(1.06); }
+  button.danger { border-color: rgba(255, 77, 109, .35); color: var(--danger); }
+  button.danger:hover { background: rgba(255, 77, 109, .10); }
   button.ghost { background: transparent; }
-  button:disabled { opacity: .45; cursor: not-allowed; }
+  button:disabled { opacity: .45; cursor: not-allowed; transform: none; }
+  .ripple {
+    position: absolute; border-radius: 50%; transform: scale(0); pointer-events: none;
+    background: currentColor; opacity: .22; animation: rippleOut .6s ease-out forwards;
+  }
   .row { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; }
 
+  /* ===================== inputs ===================== */
   input, select, textarea {
-    font: inherit; color: var(--text); background: #0d0f16; border: 1px solid var(--line);
-    border-radius: 9px; padding: 9px 11px; width: 100%; outline: none;
+    font: inherit; color: var(--text); background: var(--input-bg);
+    border: 1px solid var(--line); border-radius: 10px; padding: 9px 11px; width: 100%;
+    outline: none;
+    transition: border-color .25s, box-shadow .25s, background-color .5s, color .5s;
   }
-  input:focus, select:focus, textarea:focus { border-color: var(--accent); box-shadow: 0 0 0 3px rgba(124,92,255,.15); }
+  input:hover, select:hover, textarea:hover { border-color: var(--line-hi); }
+  input:focus, select:focus, textarea:focus {
+    border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft);
+  }
   label.field { display: block; margin-bottom: 10px; }
-  label.field span { display: block; font-size: 11px; letter-spacing: 1px; text-transform: uppercase; color: var(--muted); margin-bottom: 5px; }
+  label.field span {
+    display: block; font-size: 11px; letter-spacing: 1px; text-transform: uppercase;
+    color: var(--muted); margin-bottom: 5px; transition: color .5s;
+  }
   .inline { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
 
+  /* ===================== console ===================== */
   #console {
-    font-family: var(--mono); font-size: 12px; line-height: 1.6; height: 300px; overflow-y: auto;
-    background: #07080c; border: 1px solid var(--line); border-radius: 10px; padding: 12px;
+    font-family: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace;
+    font-size: 12px; line-height: 1.65; height: 300px; overflow-y: auto;
+    background: var(--console-bg); border: 1px solid var(--line); border-radius: 12px;
+    padding: 12px; scroll-behavior: smooth;
+    transition: background-color .5s, border-color .5s;
   }
-  .ln { white-space: pre-wrap; word-break: break-word; }
-  .ln .t { color: #4b5468; }
-  .ln.info .m { color: #b9c2d6; }
+  #console::-webkit-scrollbar { width: 8px; }
+  #console::-webkit-scrollbar-thumb { background: var(--line-hi); border-radius: 8px; }
+  .ln { white-space: pre-wrap; word-break: break-word; animation: lineIn .3s cubic-bezier(.22, 1, .36, 1); }
+  .ln .t { color: var(--muted); opacity: .75; }
+  .ln.info .m { color: var(--text); opacity: .88; }
   .ln.warning .m { color: var(--warn); }
   .ln.error .m { color: var(--danger); }
-  .ln .src { color: #5b6480; }
+  .ln .src { color: var(--muted); opacity: .6; }
 
-  .cog { display: flex; align-items: center; justify-content: space-between; padding: 10px 0; border-bottom: 1px solid var(--line); }
-  .cog:last-child { border-bottom: 0; }
-  .cog .name { font-family: var(--mono); }
-  .switch { position: relative; width: 42px; height: 24px; flex: none; }
-  .switch input { position: absolute; opacity: 0; width: 100%; height: 100%; margin: 0; cursor: pointer; }
-  .switch .track { position: absolute; inset: 0; background: #2a3042; border-radius: 999px; transition: .18s; }
-  .switch .thumb { position: absolute; top: 3px; left: 3px; width: 18px; height: 18px; background: #8b93a8; border-radius: 50%; transition: .18s; }
-  .switch input:checked + .track { background: rgba(124,92,255,.35); }
-  .switch input:checked + .track + .thumb { left: 21px; background: var(--accent); }
-
-  table { width: 100%; border-collapse: collapse; font-size: 13px; }
-  th, td { text-align: left; padding: 9px 10px; border-bottom: 1px solid var(--line); vertical-align: top; }
-  th { font-size: 10px; letter-spacing: 1.2px; text-transform: uppercase; color: var(--muted); font-weight: 600; }
-  td.mono { font-family: var(--mono); font-size: 12px; color: #c3cbdd; }
-  .tag { font-size: 10px; padding: 2px 7px; border-radius: 999px; border: 1px solid var(--line); color: var(--muted); }
-  .tag.kw { color: var(--accent-2); border-color: #12463c; }
-  .tag.sn { color: #ff9ec0; border-color: #4a2030; }
-
-  #login {
-    position: fixed; inset: 0; display: none; place-items: center; z-index: 50;
-    background: rgba(6,7,11,.86); backdrop-filter: blur(8px);
+  /* ===================== cogs ===================== */
+  .cog {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 11px 0; border-bottom: 1px solid var(--line);
+    transition: border-color .5s, padding-left .3s cubic-bezier(.22, 1, .36, 1);
   }
-  #login.show { display: grid; }
-  #login .box { width: min(380px, 92vw); }
-  #login .pin { font-family: var(--mono); font-size: 22px; letter-spacing: 8px; text-align: center; }
+  .cog:last-child { border-bottom: 0; }
+  .cog:hover { padding-left: 6px; }
+  .cog .name { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
+  .switch { position: relative; width: 44px; height: 25px; flex: none; }
+  .switch input { position: absolute; opacity: 0; width: 100%; height: 100%; margin: 0; cursor: pointer; z-index: 2; }
+  .switch .track {
+    position: absolute; inset: 0; background: var(--track); border-radius: 999px;
+    transition: background-color .35s cubic-bezier(.22, 1, .36, 1);
+  }
+  .switch .thumb {
+    position: absolute; top: 3px; left: 3px; width: 19px; height: 19px;
+    background: var(--thumb); border-radius: 50%;
+    transition: left .38s cubic-bezier(.34, 1.56, .64, 1), background-color .35s;
+    box-shadow: 0 1px 4px rgba(0, 0, 0, .25);
+  }
+  .switch input:checked + .track { background: var(--accent-soft); }
+  .switch input:checked + .track + .thumb { left: 22px; background: var(--accent); }
+
+  /* ===================== table ===================== */
+  table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  th, td { text-align: left; padding: 9px 10px; border-bottom: 1px solid var(--line); vertical-align: top; transition: border-color .5s; }
+  th { font-size: 10px; letter-spacing: 1.2px; text-transform: uppercase; color: var(--muted); font-weight: 600; }
+  tbody tr { transition: background-color .2s; }
+  tbody tr:hover { background: var(--panel-hi); }
+  td.mono { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 12px; opacity: .9; }
+  .tag {
+    font-size: 10px; padding: 2px 8px; border-radius: 999px;
+    border: 1px solid var(--line); color: var(--muted);
+    transition: border-color .3s, color .3s;
+  }
+  .tag.kw { color: var(--accent-2); border-color: color-mix(in srgb, var(--accent-2) 35%, transparent); }
+  .tag.sn { color: var(--danger); border-color: color-mix(in srgb, var(--danger) 35%, transparent); }
+
+  /* ===================== login ===================== */
+  #login {
+    position: fixed; inset: 0; display: grid; place-items: center; z-index: 50;
+    background: color-mix(in srgb, var(--bg) 78%, transparent);
+    backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px);
+    opacity: 0; visibility: hidden;
+    transition: opacity .35s ease, visibility .35s;
+  }
+  #login.show { opacity: 1; visibility: visible; }
+  #login .box {
+    width: min(380px, 92vw);
+    transform: translateY(12px) scale(.97); opacity: 0;
+    transition: transform .45s cubic-bezier(.22, 1, .36, 1), opacity .35s ease;
+  }
+  #login.show .box { transform: none; opacity: 1; }
+  #login .pin {
+    font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    font-size: 22px; letter-spacing: 8px; text-align: center;
+  }
   .err { color: var(--danger); font-size: 12px; min-height: 16px; margin-top: 8px; }
-  .hint { color: var(--muted); font-size: 12px; }
+  .hint { color: var(--muted); font-size: 12px; transition: color .5s; }
+
+  /* ===================== toast ===================== */
   .toast {
-    position: fixed; right: 18px; bottom: 18px; background: var(--panel-2); border: 1px solid var(--line);
-    border-left: 3px solid var(--accent); padding: 11px 15px; border-radius: 9px; font-size: 13px;
-    opacity: 0; transform: translateY(8px); transition: .2s; pointer-events: none; max-width: 340px;
+    position: fixed; right: 18px; bottom: 18px; z-index: 60;
+    background: var(--panel-2); border: 1px solid var(--line);
+    border-left: 3px solid var(--accent); padding: 11px 15px; border-radius: 10px;
+    font-size: 13px; max-width: 340px; box-shadow: var(--shadow);
+    opacity: 0; transform: translateY(14px) scale(.97); pointer-events: none;
+    transition: opacity .3s ease, transform .45s cubic-bezier(.34, 1.56, .64, 1);
   }
   .toast.show { opacity: 1; transform: none; }
   .toast.bad { border-left-color: var(--danger); }
+
+  /* ===================== theme reveal ===================== */
+  ::view-transition-old(root), ::view-transition-new(root) { animation: none; mix-blend-mode: normal; }
+  ::view-transition-new(root) { animation: themeReveal .55s cubic-bezier(.4, 0, .2, 1); }
+  @keyframes themeReveal {
+    from { clip-path: circle(0% at var(--tx, 50%) var(--ty, 0%)); }
+    to { clip-path: circle(150% at var(--tx, 50%) var(--ty, 0%)); }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after {
+      animation-duration: .01ms !important; animation-iteration-count: 1 !important;
+      transition-duration: .01ms !important; scroll-behavior: auto !important;
+    }
+  }
 </style>
 </head>
 <body>
@@ -140,20 +319,29 @@
   <header>
     <div class="logo">nyx<small>CONTROL</small></div>
     <div class="spacer"></div>
+    <button class="theme-btn" id="theme-toggle" title="toggle theme" aria-label="toggle theme">
+      <svg class="moon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z"/>
+      </svg>
+      <svg class="sun" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+        <circle cx="12" cy="12" r="4"/>
+        <path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/>
+      </svg>
+    </button>
     <div class="pill"><span class="dot" id="wsdot"></span><span id="wstext">offline</span></div>
     <div class="pill"><span class="dot" id="botdot"></span><span id="bottext">stopped</span></div>
     <button class="ghost" id="logout">lock</button>
   </header>
 
   <div class="grid cards" style="margin-bottom:16px">
-    <div class="card stat"><div class="label">status</div><div class="value small" id="s-status">—</div></div>
-    <div class="card stat"><div class="label">ping</div><div class="value" id="s-ping">—</div></div>
-    <div class="card stat"><div class="label">uptime</div><div class="value" id="s-uptime">—</div></div>
-    <div class="card stat"><div class="label">servers</div><div class="value" id="s-guilds">—</div></div>
-    <div class="card stat"><div class="label">account</div><div class="value small" id="s-user">—</div></div>
+    <div class="card stat" style="--i:0"><div class="label">status</div><div class="value small" id="s-status">—</div></div>
+    <div class="card stat" style="--i:1"><div class="label">ping</div><div class="value" id="s-ping">—</div></div>
+    <div class="card stat" style="--i:2"><div class="label">uptime</div><div class="value" id="s-uptime">—</div></div>
+    <div class="card stat" style="--i:3"><div class="label">servers</div><div class="value" id="s-guilds">—</div></div>
+    <div class="card stat" style="--i:4"><div class="label">account</div><div class="value small" id="s-user">—</div></div>
   </div>
 
-  <div class="card" style="margin-bottom:16px">
+  <div class="card" style="margin-bottom:16px; --i:5">
     <div class="row">
       <button class="primary" id="btn-start">start</button>
       <button id="btn-stop">stop</button>
@@ -165,15 +353,15 @@
 
   <div class="grid cols">
     <div class="grid">
-      <div class="card">
+      <div class="card" style="--i:6">
         <h2>live console</h2>
         <div id="console"></div>
       </div>
-      <div class="card">
+      <div class="card" style="--i:7">
         <h2>cogs</h2>
         <div id="cogs"></div>
       </div>
-      <div class="card">
+      <div class="card" style="--i:8">
         <h2>sniped &amp; keyword alerts</h2>
         <div class="row" style="margin-bottom:10px">
           <input id="evq" placeholder="search content, author, channel…" style="flex:1" />
@@ -189,7 +377,7 @@
     </div>
 
     <div class="grid">
-      <div class="card">
+      <div class="card" style="--i:9">
         <h2>discord token</h2>
         <label class="field"><span>token (write-only)</span>
           <input id="token" type="password" placeholder="paste token to update…" autocomplete="off" />
@@ -200,7 +388,7 @@
         </div>
       </div>
 
-      <div class="card">
+      <div class="card" style="--i:10">
         <h2>presence</h2>
         <div class="inline">
           <label class="field"><span>status</span>
@@ -217,7 +405,7 @@
         <button class="primary" id="p-save">apply presence</button>
       </div>
 
-      <div class="card">
+      <div class="card" style="--i:11">
         <h2>afk auto-reply</h2>
         <div class="row" style="margin-bottom:10px">
           <label class="switch"><input type="checkbox" id="afk-on" /><span class="track"></span><span class="thumb"></span></label>
@@ -227,13 +415,13 @@
         <button class="primary" id="afk-save">save afk</button>
       </div>
 
-      <div class="card">
+      <div class="card" style="--i:12">
         <h2>keywords</h2>
         <label class="field"><span>comma separated</span><input id="kw" placeholder="deploy, outage, invoice" /></label>
         <button class="primary" id="kw-save">save keywords</button>
       </div>
 
-      <div class="card">
+      <div class="card" style="--i:13">
         <h2>snippets</h2>
         <label class="field"><span>one per line — key = value</span>
           <textarea id="snip" rows="4" placeholder="brb = be right back&#10;ty = thank you"></textarea>
@@ -241,7 +429,7 @@
         <button class="primary" id="snip-save">save snippets</button>
       </div>
 
-      <div class="card">
+      <div class="card" style="--i:14">
         <h2>command prefix</h2>
         <div class="row">
           <input id="prefix" style="width:90px" maxlength="5" />
@@ -269,8 +457,43 @@
 (() => {
   "use strict";
   const $ = (id) => document.getElementById(id);
-  let ws = null, wsRetry = null, cfg = null;
+  let ws = null, wsRetry = null, cfg = null, booted = false;
 
+  /* ---------------- theme ---------------- */
+  function applyTheme(next) {
+    document.documentElement.dataset.theme = next;
+    try { localStorage.setItem("nyx-theme", next); } catch (e) {}
+  }
+
+  $("theme-toggle").addEventListener("click", (ev) => {
+    const next = document.documentElement.dataset.theme === "dark" ? "light" : "dark";
+    const rect = ev.currentTarget.getBoundingClientRect();
+    document.documentElement.style.setProperty("--tx", ((rect.left + rect.width / 2) / window.innerWidth) * 100 + "%");
+    document.documentElement.style.setProperty("--ty", ((rect.top + rect.height / 2) / window.innerHeight) * 100 + "%");
+
+    if (document.startViewTransition) {
+      document.startViewTransition(() => applyTheme(next));
+    } else {
+      applyTheme(next);
+    }
+  });
+
+  /* ---------------- ripple ---------------- */
+  document.addEventListener("pointerdown", (ev) => {
+    const btn = ev.target.closest("button");
+    if (!btn || btn.disabled) return;
+    const r = btn.getBoundingClientRect();
+    const size = Math.max(r.width, r.height);
+    const span = document.createElement("span");
+    span.className = "ripple";
+    span.style.width = span.style.height = size + "px";
+    span.style.left = (ev.clientX - r.left - size / 2) + "px";
+    span.style.top = (ev.clientY - r.top - size / 2) + "px";
+    btn.appendChild(span);
+    setTimeout(() => span.remove(), 620);
+  });
+
+  /* ---------------- toast ---------------- */
   function toast(msg, bad) {
     const el = $("toast");
     el.textContent = msg;
@@ -279,6 +502,7 @@
     el._t = setTimeout(() => (el.className = "toast"), 2600);
   }
 
+  /* ---------------- api ---------------- */
   async function api(path, opts = {}) {
     const res = await fetch(path, {
       credentials: "same-origin",
@@ -296,11 +520,30 @@
 
   function showLogin() {
     $("login").classList.add("show");
-    setTimeout(() => $("pin").focus(), 60);
+    setTimeout(() => $("pin").focus(), 220);
   }
   function hideLogin() { $("login").classList.remove("show"); }
 
-  // ---- auth -------------------------------------------------------------
+  /* ---------------- number tween ---------------- */
+  function tween(el, target, suffix) {
+    const from = Number(el.dataset.v || 0);
+    const to = Number(target) || 0;
+    if (from === to) { el.textContent = to ? to + suffix : "—"; return; }
+    el.dataset.v = to;
+    const t0 = performance.now(), dur = 480;
+    function step(t) {
+      const p = Math.min(1, (t - t0) / dur);
+      const e = 1 - Math.pow(1 - p, 3);
+      el.textContent = Math.round(from + (to - from) * e) + suffix;
+      if (p < 1) requestAnimationFrame(step);
+    }
+    requestAnimationFrame(step);
+    el.classList.remove("bump");
+    void el.offsetWidth;
+    el.classList.add("bump");
+  }
+
+  /* ---------------- auth ---------------- */
   $("pin-go").addEventListener("click", doLogin);
   $("pin").addEventListener("keydown", (e) => { if (e.key === "Enter") doLogin(); });
 
@@ -313,7 +556,15 @@
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ pin }),
       });
-      if (!res.ok) { $("pin-err").textContent = "wrong pin"; return; }
+      if (!res.ok) {
+        $("pin-err").textContent = "wrong pin";
+        $("pin").animate(
+          [{ transform: "translateX(0)" }, { transform: "translateX(-7px)" },
+           { transform: "translateX(7px)" }, { transform: "translateX(0)" }],
+          { duration: 320, easing: "ease-in-out" }
+        );
+        return;
+      }
       $("pin").value = "";
       hideLogin();
       await boot();
@@ -323,10 +574,11 @@
   $("logout").addEventListener("click", async () => {
     try { await api("/api/logout", { method: "POST" }); } catch (_) {}
     if (ws) { ws.close(); ws = null; }
+    booted = false;
     showLogin();
   });
 
-  // ---- status -----------------------------------------------------------
+  /* ---------------- status ---------------- */
   function fmtUptime(s) {
     if (!s) return "—";
     const h = Math.floor(s / 3600), m = Math.floor((s % 3600) / 60), sec = Math.floor(s % 60);
@@ -334,10 +586,14 @@
   }
 
   function paintStatus(st) {
-    $("s-status").textContent = st.status;
-    $("s-ping").textContent = st.latency_ms ? st.latency_ms + "ms" : "—";
+    const statusEl = $("s-status");
+    if (statusEl.textContent !== st.status) {
+      statusEl.textContent = st.status;
+      statusEl.classList.remove("bump"); void statusEl.offsetWidth; statusEl.classList.add("bump");
+    }
+    tween($("s-ping"), st.latency_ms || 0, "ms");
     $("s-uptime").textContent = fmtUptime(st.uptime_s);
-    $("s-guilds").textContent = st.guilds ?? "—";
+    tween($("s-guilds"), st.guilds || 0, "");
     $("s-user").textContent = st.user || "—";
     $("bottext").textContent = st.status;
     const d = $("botdot");
@@ -349,7 +605,7 @@
     try { paintStatus(await api("/api/status")); } catch (_) {}
   }
 
-  // ---- console ----------------------------------------------------------
+  /* ---------------- console ---------------- */
   function addLog(ev) {
     const box = $("console");
     const atBottom = box.scrollTop + box.clientHeight >= box.scrollHeight - 40;
@@ -376,14 +632,15 @@
     ws.onmessage = (m) => { try { addLog(JSON.parse(m.data)); } catch (_) {} };
   }
 
-  // ---- cogs -------------------------------------------------------------
+  /* ---------------- cogs ---------------- */
   async function loadCogs() {
     const cogs = await api("/api/cogs");
     const box = $("cogs");
     box.innerHTML = "";
-    cogs.forEach((c) => {
+    cogs.forEach((c, i) => {
       const row = document.createElement("div");
       row.className = "cog";
+      row.style.animation = `rise .4s cubic-bezier(.22,1,.36,1) ${i * 60}ms backwards`;
       row.innerHTML = `<div><div class="name">${c.name}</div>
         <div class="hint">${c.loaded ? "loaded" : "not loaded"}</div></div>
         <div class="row">
@@ -406,13 +663,18 @@
     });
     box.querySelectorAll("[data-reload]").forEach((el) => {
       el.addEventListener("click", async () => {
-        try { await api(`/api/cogs/${el.dataset.reload}/reload`, { method: "POST" }); toast("reloaded"); }
-        catch (e) { toast(e.message, true); }
+        const original = el.textContent;
+        el.textContent = "…";
+        try {
+          await api(`/api/cogs/${el.dataset.reload}/reload`, { method: "POST" });
+          toast("reloaded");
+        } catch (e) { toast(e.message, true); }
+        el.textContent = original;
       });
     });
   }
 
-  // ---- config editors ---------------------------------------------------
+  /* ---------------- config ---------------- */
   function paintConfig(c) {
     cfg = c;
     $("p-status").value = c.presence.status;
@@ -456,7 +718,7 @@
 
   $("prefix-save").addEventListener("click", () => savePatch({ prefix: $("prefix").value }, "prefix saved"));
 
-  // ---- token ------------------------------------------------------------
+  /* ---------------- token ---------------- */
   async function loadToken() {
     const t = await api("/api/token");
     $("token-state").textContent = t.configured ? `configured · ${t.masked}` : "not configured";
@@ -474,20 +736,26 @@
     } catch (e) { toast(e.message, true); }
   });
 
-  // ---- controls ---------------------------------------------------------
+  /* ---------------- controls ---------------- */
   async function control(action) {
+    const btn = $("btn-" + action);
+    const label = btn.textContent;
+    btn.disabled = true;
+    btn.textContent = "…";
     try {
       const st = await api(`/api/bot/${action}`, { method: "POST" });
       paintStatus({ ...st, token_configured: st.token_configured ?? true });
       toast(`bot ${action}`);
       refreshStatus(); loadCogs();
     } catch (e) { toast(e.message, true); }
+    btn.disabled = false;
+    btn.textContent = label;
   }
   $("btn-start").addEventListener("click", () => control("start"));
   $("btn-stop").addEventListener("click", () => control("stop"));
   $("btn-restart").addEventListener("click", () => control("restart"));
 
-  // ---- events -----------------------------------------------------------
+  /* ---------------- events ---------------- */
   function fmtTime(ts) {
     return new Date(ts * 1000).toLocaleString([], { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" });
   }
@@ -505,10 +773,10 @@
       body.innerHTML = '<tr><td colspan="5" class="hint">no events yet</td></tr>';
       return;
     }
-    body.innerHTML = rows.map((r) => {
+    body.innerHTML = rows.map((r, i) => {
       const cls = r._type === "snipe" ? "sn" : "kw";
       const content = (r.content || "").replace(/[<>&]/g, (c) => ({ "<": "&lt;", ">": "&gt;", "&": "&amp;" }[c]));
-      return `<tr>
+      return `<tr style="animation: rise .35s cubic-bezier(.22,1,.36,1) ${Math.min(i * 25, 400)}ms backwards">
         <td class="mono">${fmtTime(r.ts)}</td>
         <td><span class="tag ${cls}">${r._type}</span></td>
         <td class="mono">${r.author_name || "—"}</td>
@@ -520,7 +788,7 @@
   $("evgo").addEventListener("click", loadEvents);
   $("evq").addEventListener("keydown", (e) => { if (e.key === "Enter") loadEvents(); });
 
-  // ---- boot -------------------------------------------------------------
+  /* ---------------- boot ---------------- */
   async function boot() {
     try {
       const st = await api("/api/status");
@@ -529,7 +797,7 @@
       await loadToken();
       await loadCogs();
       await loadEvents();
-      connectWS();
+      if (!booted) { connectWS(); booted = true; }
       hideLogin();
     } catch (e) {
       if (e.message !== "unauthorized") toast(e.message, true);
@@ -538,7 +806,6 @@
 
   setInterval(() => { if (!$("login").classList.contains("show")) refreshStatus(); }, 4000);
 
-  // probe session on load
   fetch("/api/session", { credentials: "same-origin" })
     .then((r) => (r.ok ? boot() : showLogin()))
     .catch(() => showLogin());
