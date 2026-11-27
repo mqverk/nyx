@@ -212,6 +212,110 @@ def test_events_search_returns_both_tables(env):
 
 
 # --------------------------------------------------------------------------
+# Bookmarks
+# --------------------------------------------------------------------------
+def _seed_bookmark(path, content="saved message", author="alice"):
+    import sqlite3
+    import time as _t
+    con = sqlite3.connect(str(path))
+    con.execute(
+        "INSERT INTO bookmarks (ts, content, author_name, channel_name) VALUES (?,?,?,?)",
+        (_t.time(), content, author, "general"),
+    )
+    con.commit()
+    con.close()
+
+
+def test_bookmarks_empty(env):
+    login(env)
+    assert env.client.get("/api/bookmarks").json() == {"items": []}
+
+
+def test_bookmarks_list_and_search(env):
+    login(env)
+    _seed_bookmark(env.db.path, "alpha note")
+    _seed_bookmark(env.db.path, "beta note")
+
+    assert len(env.client.get("/api/bookmarks").json()["items"]) == 2
+    assert len(env.client.get("/api/bookmarks?q=alpha").json()["items"]) == 1
+
+
+def test_bookmark_delete(env):
+    login(env)
+    _seed_bookmark(env.db.path)
+    bookmark_id = env.client.get("/api/bookmarks").json()["items"][0]["id"]
+
+    assert env.client.delete(f"/api/bookmarks/{bookmark_id}").status_code == 200
+    assert env.client.get("/api/bookmarks").json()["items"] == []
+    assert env.client.delete(f"/api/bookmarks/{bookmark_id}").status_code == 404
+
+
+def test_bookmarks_require_auth(env):
+    assert env.client.get("/api/bookmarks").status_code == 401
+    assert env.client.delete("/api/bookmarks/1").status_code == 401
+
+
+# --------------------------------------------------------------------------
+# Todos
+# --------------------------------------------------------------------------
+def test_todo_crud_via_api(env):
+    login(env)
+
+    created = env.client.post("/api/todos", json={"text": "ship nyx"})
+    assert created.status_code == 200
+    todo_id = created.json()["id"]
+
+    items = env.client.get("/api/todos").json()["items"]
+    assert len(items) == 1
+    assert items[0]["text"] == "ship nyx"
+    assert items[0]["done"] == 0
+
+    assert env.client.post(f"/api/todos/{todo_id}/done").status_code == 200
+    assert env.client.get("/api/todos").json()["items"][0]["done"] == 1
+
+    assert env.client.delete(f"/api/todos/{todo_id}").status_code == 200
+    assert env.client.get("/api/todos").json()["items"] == []
+
+
+def test_todo_unknown_id_returns_404(env):
+    login(env)
+    assert env.client.post("/api/todos/9999/done").status_code == 404
+    assert env.client.delete("/api/todos/9999").status_code == 404
+
+
+def test_todo_rejects_empty_text(env):
+    login(env)
+    assert env.client.post("/api/todos", json={"text": ""}).status_code == 422
+
+
+def test_todos_require_auth(env):
+    assert env.client.get("/api/todos").status_code == 401
+
+
+# --------------------------------------------------------------------------
+# Status presets
+# --------------------------------------------------------------------------
+def test_status_cycle_round_trip(env):
+    login(env)
+    updated = env.client.put(
+        "/api/config",
+        json={"patch": {"status_cycle": ["listening", "coding"], "status_cycle_interval": 120}},
+    )
+    assert updated.status_code == 200
+    body = updated.json()
+    assert body["status_cycle"] == ["listening", "coding"]
+    assert body["status_cycle_interval"] == 120
+
+
+def test_status_cycle_interval_is_clamped_server_side(env):
+    login(env)
+    body = env.client.put(
+        "/api/config", json={"patch": {"status_cycle_interval": 5}}
+    ).json()
+    assert body["status_cycle_interval"] == 60
+
+
+# --------------------------------------------------------------------------
 # WebSocket
 # --------------------------------------------------------------------------
 def test_websocket_requires_session(env):

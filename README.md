@@ -145,6 +145,12 @@ Default prefix is `.` (configurable in `config.json` or the dashboard).
 | `.snipe` | Last deleted message in this channel |
 | `.remind <duration> <text>` | Reminder after `10s`, `5m`, `1h30m`, `2d` |
 | `.calc <expr>` | Safe arithmetic (`+ - * / // % **`, parentheses) |
+| `.spoiler <text>` | Rewrite your own message with per-character `||spoiler||` tags |
+| `.smallcaps <text>` | Rewrite your own message in Unicode small caps |
+| `.mock <text>` | Rewrite your own message with alternating case |
+| `.banner [@user]` | Profile banner URL |
+| `.roles [@user]` | Member roles, highest first |
+| `.firstmsg` | Jump link to the earliest message in the channel |
 
 ### Automation
 
@@ -161,6 +167,30 @@ Default prefix is `.` (configurable in `config.json` or the dashboard).
 
 Snippets expand when a message is exactly the key (or `key <args>`). Keywords match whole
 words only, case-insensitively.
+
+### Media
+
+| Command | Description |
+| --- | --- |
+| `.editsnipe` / `.es` | Original text of the last edited message in the channel |
+| `.ghost <duration> <text>` | Post text that self-destructs after `duration` (max 24h) |
+| `.bookmark` | Reply to a message to save it to SQLite |
+| `.quote` | Reply to a message to render a dark-mode PNG quote card |
+
+### Productivity
+
+| Command | Description |
+| --- | --- |
+| `.seen [@user]` | When a user was last active, and where |
+| `.todo add <text>` | Create a todo |
+| `.todo list` | Show your todos |
+| `.todo done <id>` | Mark a todo complete |
+| `.todo remove <id>` | Delete a todo |
+| `.statuscycle on\|off` | Rotate presence through `status_cycle` presets |
+| `.tz <zone>` | Convert the time — `Asia/Kolkata`, `UTC+5:30`, `london` |
+
+Todos are scoped to their owner: one user can never list, complete, or delete another
+user's todos. Status rotation is clamped to a **60-second minimum** server-side.
 
 ---
 
@@ -182,6 +212,12 @@ All routes except `/api/login` require the session cookie issued by a correct PI
 | POST | `/api/cogs/{name}/reload` | Hot-reload a cog |
 | GET/PUT | `/api/config` | Read / deep-merge config |
 | GET | `/api/events?q=&limit=` | Search keyword hits and snipes |
+| GET | `/api/bookmarks?q=` | List/search saved bookmarks |
+| DELETE | `/api/bookmarks/{id}` | Delete a bookmark |
+| GET | `/api/todos` | List todos for the bot account |
+| POST | `/api/todos` | Create a todo |
+| POST | `/api/todos/{id}/done` | Complete a todo |
+| DELETE | `/api/todos/{id}` | Delete a todo |
 | WS | `/ws/logs` | Live telemetry stream |
 
 ---

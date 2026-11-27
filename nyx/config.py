@@ -69,7 +69,12 @@ class AppConfig(BaseModel):
     keywords: list[str] = Field(default_factory=list)
     snippets: dict[str, str] = Field(default_factory=dict)
     cogs: dict[str, bool] = Field(
-        default_factory=lambda: {"core": True, "automation": True}
+        default_factory=lambda: {
+            "core": True,
+            "automation": True,
+            "media": True,
+            "productivity": True,
+        }
     )
     status_cycle: list[str] = Field(default_factory=list)
     status_cycle_interval: int = 60

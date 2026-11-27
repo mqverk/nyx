@@ -27,7 +27,11 @@ def test_defaults_are_sane():
     assert cfg.prefix == "."
     assert cfg.presence.status == "online"
     assert cfg.afk.enabled is False
-    assert cfg.cogs == {"core": True, "automation": True}
+    assert cfg.cogs == {
+        "core": True, "automation": True, "media": True, "productivity": True,
+    }
+    assert cfg.status_cycle == []
+    assert cfg.status_cycle_interval == 60
     assert cfg.db_path.endswith(".db")
 
 

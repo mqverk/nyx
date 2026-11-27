@@ -114,6 +114,10 @@ class ToggleBody(BaseModel):
     enabled: bool
 
 
+class TodoBody(BaseModel):
+    text: str = Field(min_length=1, max_length=500)
+
+
 # ---------------------------------------------------------------------------
 # App factory
 # ---------------------------------------------------------------------------
@@ -282,6 +286,51 @@ def create_app(
         q: str | None = None, limit: int = 50, _: str = Depends(require_session)
     ) -> dict[str, Any]:
         return await db.search_events(q, limit=limit)
+
+    # -- bookmarks ---------------------------------------------------------
+    @app.get("/api/bookmarks")
+    async def bookmarks_list(
+        q: str | None = None, limit: int = 100, _: str = Depends(require_session)
+    ) -> dict[str, Any]:
+        return {"items": await db.list_bookmarks(q, limit=limit)}
+
+    @app.delete("/api/bookmarks/{bookmark_id}")
+    async def bookmark_delete(
+        bookmark_id: int, _: str = Depends(require_session)
+    ) -> dict[str, Any]:
+        if not await db.delete_bookmark(bookmark_id):
+            raise HTTPException(status_code=404, detail="bookmark not found")
+        return {"deleted": bookmark_id}
+
+    # -- todos -------------------------------------------------------------
+    def _owner_id() -> int:
+        """Todos belong to the account the bot runs as (0 when stopped)."""
+        user = getattr(runner.client, "user", None) if runner.client else None
+        return int(getattr(user, "id", 0) or 0)
+
+    @app.get("/api/todos")
+    async def todos_list(_: str = Depends(require_session)) -> dict[str, Any]:
+        return {"items": await db.list_todos(_owner_id())}
+
+    @app.post("/api/todos")
+    async def todo_create(body: TodoBody, _: str = Depends(require_session)) -> dict[str, Any]:
+        text = body.text.strip()
+        if not text:
+            raise HTTPException(status_code=400, detail="empty todo")
+        todo_id = await db.add_todo(_owner_id(), text)
+        return {"id": todo_id, "text": text}
+
+    @app.post("/api/todos/{todo_id}/done")
+    async def todo_complete(todo_id: int, _: str = Depends(require_session)) -> dict[str, Any]:
+        if not await db.complete_todo(_owner_id(), todo_id):
+            raise HTTPException(status_code=404, detail="todo not found")
+        return {"id": todo_id, "done": True}
+
+    @app.delete("/api/todos/{todo_id}")
+    async def todo_delete(todo_id: int, _: str = Depends(require_session)) -> dict[str, Any]:
+        if not await db.remove_todo(_owner_id(), todo_id):
+            raise HTTPException(status_code=404, detail="todo not found")
+        return {"deleted": todo_id}
 
     # -- websocket ---------------------------------------------------------
     @app.websocket("/ws/logs")

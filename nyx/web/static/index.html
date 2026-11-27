@@ -264,6 +264,26 @@
   .tag.kw { color: var(--accent-2); border-color: color-mix(in srgb, var(--accent-2) 35%, transparent); }
   .tag.sn { color: var(--danger); border-color: color-mix(in srgb, var(--danger) 35%, transparent); }
 
+  /* ===================== list items ===================== */
+  .list { display: flex; flex-direction: column; gap: 8px; max-height: 320px; overflow-y: auto; }
+  .list::-webkit-scrollbar { width: 8px; }
+  .list::-webkit-scrollbar-thumb { background: var(--line-hi); border-radius: 8px; }
+  .item {
+    display: flex; gap: 10px; align-items: flex-start; justify-content: space-between;
+    padding: 10px 12px; border: 1px solid var(--line); border-radius: 10px;
+    background: var(--panel-2);
+    animation: rise .35s cubic-bezier(.22, 1, .36, 1) backwards;
+    transition: border-color .25s, transform .25s cubic-bezier(.22, 1, .36, 1),
+                background-color .5s, opacity .3s;
+  }
+  .item:hover { border-color: var(--line-hi); transform: translateX(3px); }
+  .item .body { min-width: 0; flex: 1; }
+  .item .text { font-size: 13px; word-break: break-word; }
+  .item .meta { font-size: 11px; color: var(--muted); margin-top: 3px; }
+  .item.done .text { text-decoration: line-through; opacity: .5; }
+  .icon-btn { padding: 3px 9px; font-size: 12px; border-radius: 8px; line-height: 1.4; }
+  .empty { color: var(--muted); font-size: 12px; padding: 6px 0; }
+
   /* ===================== login ===================== */
   #login {
     position: fixed; inset: 0; display: grid; place-items: center; z-index: 50;
@@ -374,10 +394,18 @@
           </table>
         </div>
       </div>
+      <div class="card" style="--i:9">
+        <h2>bookmarks</h2>
+        <div class="row" style="margin-bottom:10px">
+          <input id="bmq" placeholder="search bookmarks…" style="flex:1" />
+          <button id="bmgo">search</button>
+        </div>
+        <div id="bookmarks" class="list"></div>
+      </div>
     </div>
 
     <div class="grid">
-      <div class="card" style="--i:9">
+      <div class="card" style="--i:10">
         <h2>discord token</h2>
         <label class="field"><span>token (write-only)</span>
           <input id="token" type="password" placeholder="paste token to update…" autocomplete="off" />
@@ -436,6 +464,27 @@
           <button class="primary" id="prefix-save">save</button>
         </div>
       </div>
+
+      <div class="card" style="--i:15">
+        <h2>todos</h2>
+        <div class="row" style="margin-bottom:10px">
+          <input id="todo-input" placeholder="add a todo…" style="flex:1" />
+          <button class="primary" id="todo-add">add</button>
+        </div>
+        <div id="todos" class="list"></div>
+      </div>
+
+      <div class="card" style="--i:16">
+        <h2>status presets</h2>
+        <label class="field"><span>one per line</span>
+          <textarea id="cycle-presets" rows="3" placeholder="listening to the void&#10;building nyx"></textarea>
+        </label>
+        <div class="row">
+          <input id="cycle-interval" type="number" min="60" step="10" style="width:110px" />
+          <button class="primary" id="cycle-save">save presets</button>
+        </div>
+        <div class="hint" style="margin-top:8px">minimum 60s — enforced server-side</div>
+      </div>
     </div>
   </div>
 </div>
@@ -457,6 +506,7 @@
 (() => {
   "use strict";
   const $ = (id) => document.getElementById(id);
+  const esc = (s) => String(s ?? "").replace(/[<>&"]/g, (c) => ({ "<": "&lt;", ">": "&gt;", "&": "&amp;", '"': "&quot;" }[c]));
   let ws = null, wsRetry = null, cfg = null, booted = false;
 
   /* ---------------- theme ---------------- */
@@ -685,6 +735,8 @@
     $("kw").value = (c.keywords || []).join(", ");
     $("snip").value = Object.entries(c.snippets || {}).map(([k, v]) => `${k} = ${v}`).join("\n");
     $("prefix").value = c.prefix;
+    $("cycle-presets").value = (c.status_cycle || []).join("\n");
+    $("cycle-interval").value = c.status_cycle_interval || 60;
   }
 
   async function savePatch(patch, okMsg) {
@@ -788,6 +840,86 @@
   $("evgo").addEventListener("click", loadEvents);
   $("evq").addEventListener("keydown", (e) => { if (e.key === "Enter") loadEvents(); });
 
+  /* ---------------- bookmarks ---------------- */
+  async function loadBookmarks() {
+    const q = $("bmq").value.trim();
+    const data = await api(`/api/bookmarks?limit=100${q ? "&q=" + encodeURIComponent(q) : ""}`);
+    const box = $("bookmarks");
+    if (!data.items.length) {
+      box.innerHTML = '<div class="empty">no bookmarks yet — reply to a message with .bookmark</div>';
+      return;
+    }
+    box.innerHTML = data.items.map((b, i) => `
+      <div class="item" style="animation-delay:${Math.min(i * 30, 300)}ms">
+        <div class="body">
+          <div class="text">${esc(b.content) || "<em>[no text]</em>"}</div>
+          <div class="meta">${esc(b.author_name || "—")} · #${esc(b.channel_name || b.channel_id || "—")} · ${fmtTime(b.ts)}</div>
+        </div>
+        <button class="icon-btn ghost" data-bm="${b.id}" title="delete">✕</button>
+      </div>`).join("");
+    box.querySelectorAll("[data-bm]").forEach((el) => {
+      el.addEventListener("click", async () => {
+        try {
+          await api(`/api/bookmarks/${el.dataset.bm}`, { method: "DELETE" });
+          toast("bookmark deleted");
+          loadBookmarks();
+        } catch (e) { toast(e.message, true); }
+      });
+    });
+  }
+  $("bmgo").addEventListener("click", loadBookmarks);
+  $("bmq").addEventListener("keydown", (e) => { if (e.key === "Enter") loadBookmarks(); });
+
+  /* ---------------- todos ---------------- */
+  async function loadTodos() {
+    const data = await api("/api/todos");
+    const box = $("todos");
+    if (!data.items.length) {
+      box.innerHTML = '<div class="empty">nothing to do — add one above</div>';
+      return;
+    }
+    box.innerHTML = data.items.map((t, i) => `
+      <div class="item ${t.done ? "done" : ""}" style="animation-delay:${Math.min(i * 30, 300)}ms">
+        <div class="body"><div class="text">${esc(t.text)}</div></div>
+        <div class="row" style="gap:6px">
+          ${t.done ? "" : `<button class="icon-btn ghost" data-done="${t.id}" title="complete">✓</button>`}
+          <button class="icon-btn ghost" data-del="${t.id}" title="delete">✕</button>
+        </div>
+      </div>`).join("");
+    box.querySelectorAll("[data-done]").forEach((el) => {
+      el.addEventListener("click", async () => {
+        try { await api(`/api/todos/${el.dataset.done}/done`, { method: "POST" }); loadTodos(); }
+        catch (e) { toast(e.message, true); }
+      });
+    });
+    box.querySelectorAll("[data-del]").forEach((el) => {
+      el.addEventListener("click", async () => {
+        try { await api(`/api/todos/${el.dataset.del}`, { method: "DELETE" }); loadTodos(); }
+        catch (e) { toast(e.message, true); }
+      });
+    });
+  }
+
+  async function addTodo() {
+    const text = $("todo-input").value.trim();
+    if (!text) { toast("type a todo first", true); return; }
+    try {
+      await api("/api/todos", { method: "POST", body: JSON.stringify({ text }) });
+      $("todo-input").value = "";
+      toast("todo added");
+      loadTodos();
+    } catch (e) { toast(e.message, true); }
+  }
+  $("todo-add").addEventListener("click", addTodo);
+  $("todo-input").addEventListener("keydown", (e) => { if (e.key === "Enter") addTodo(); });
+
+  /* ---------------- status presets ---------------- */
+  $("cycle-save").addEventListener("click", () => {
+    const presets = $("cycle-presets").value.split("\n").map((s) => s.trim()).filter(Boolean);
+    const interval = Math.max(60, parseInt($("cycle-interval").value || "60", 10) || 60);
+    savePatch({ status_cycle: presets, status_cycle_interval: interval }, "status presets saved");
+  });
+
   /* ---------------- boot ---------------- */
   async function boot() {
     try {
@@ -797,6 +929,8 @@
       await loadToken();
       await loadCogs();
       await loadEvents();
+      await loadBookmarks();
+      await loadTodos();
       if (!booted) { connectWS(); booted = true; }
       hideLogin();
     } catch (e) {

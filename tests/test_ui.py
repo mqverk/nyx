@@ -56,6 +56,7 @@ def test_root_renders_cleanly(app_client):
         "console", "cogs", "events", "evq",
         "token", "token-save", "p-status", "p-text", "p-emoji",
         "afk-on", "afk-msg", "kw", "snip", "prefix", "pin",
+        "bookmarks", "bmq", "todos", "todo-input", "cycle-presets", "cycle-interval",
     ],
 )
 def test_dashboard_contains_required_controls(app_client, element_id):
@@ -111,6 +112,8 @@ def test_backend_exposes_expected_core_routes(app_client):
         "/api/token", "/api/bot/start", "/api/bot/stop", "/api/bot/restart",
         "/api/cogs", "/api/cogs/{p}/toggle",
         "/api/cogs/{p}/reload", "/api/config", "/api/events", "/ws/logs",
+        "/api/bookmarks", "/api/bookmarks/{p}",
+        "/api/todos", "/api/todos/{p}/done", "/api/todos/{p}",
     ):
         assert expected in backend, f"missing backend route {expected}"
 
